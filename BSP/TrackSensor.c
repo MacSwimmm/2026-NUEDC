@@ -10,15 +10,18 @@ static uint8_t ReadRawMask(void)
 {
     uint8_t raw = 0U;
 
-    /* 固定软件位序，不依赖 GPIO 在两个端口中的物理排列。 */
-    if (DL_GPIO_readPins(TRACK_A_PORT, TRACK_A_CH8_PIN) != 0U) raw |= 0x80U;
-    if (DL_GPIO_readPins(TRACK_A_PORT, TRACK_A_CH7_PIN) != 0U) raw |= 0x40U;
-    if (DL_GPIO_readPins(TRACK_A_PORT, TRACK_A_CH6_PIN) != 0U) raw |= 0x20U;
-    if (DL_GPIO_readPins(TRACK_A_PORT, TRACK_A_CH5_PIN) != 0U) raw |= 0x10U;
-    if (DL_GPIO_readPins(TRACK_A_PORT, TRACK_A_CH4_PIN) != 0U) raw |= 0x08U;
-    if (DL_GPIO_readPins(TRACK_A_PORT, TRACK_A_CH3_PIN) != 0U) raw |= 0x04U;
-    if (DL_GPIO_readPins(TRACK_B_PORT, TRACK_B_CH2_PIN) != 0U) raw |= 0x02U;
-    if (DL_GPIO_readPins(TRACK_B_PORT, TRACK_B_CH1_PIN) != 0U) raw |= 0x01U;
+    /*
+     * 固定软件位序为“bit7 最左、bit0 最右”，不依赖两个 GPIO 端口的物理排列。
+     * 实车模块从左到右安装为 CH1~CH8，因此 CH1 放入最高位、CH8 放入最低位。
+     */
+    if (DL_GPIO_readPins(TRACK_A_PORT, TRACK_A_CH1_PIN) != 0U) raw |= 0x80U;
+    if (DL_GPIO_readPins(TRACK_A_PORT, TRACK_A_CH2_PIN) != 0U) raw |= 0x40U;
+    if (DL_GPIO_readPins(TRACK_A_PORT, TRACK_A_CH3_PIN) != 0U) raw |= 0x20U;
+    if (DL_GPIO_readPins(TRACK_A_PORT, TRACK_A_CH4_PIN) != 0U) raw |= 0x10U;
+    if (DL_GPIO_readPins(TRACK_A_PORT, TRACK_A_CH5_PIN) != 0U) raw |= 0x08U;
+    if (DL_GPIO_readPins(TRACK_A_PORT, TRACK_A_CH6_PIN) != 0U) raw |= 0x04U;
+    if (DL_GPIO_readPins(TRACK_B_PORT, TRACK_B_CH7_PIN) != 0U) raw |= 0x02U;
+    if (DL_GPIO_readPins(TRACK_B_PORT, TRACK_B_CH8_PIN) != 0U) raw |= 0x01U;
     return raw;
 }
 

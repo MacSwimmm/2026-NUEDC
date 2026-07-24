@@ -164,36 +164,36 @@ GPIO11.associatedPins[1].interruptPriority = "0";
 GPIO11.associatedPins[1].interruptEn       = true;
 GPIO11.associatedPins[1].pin.$assign       = "PB20";
 
-/* Eight digital tracking inputs. CH8 is the leftmost channel, CH1 the rightmost. */
+/* Eight digital tracking inputs. The physical module is installed CH1 to CH8 from left to right. */
 GPIO12.port = "PORTA";
 GPIO12.$name = "TRACK_A";
 GPIO12.associatedPins.create(6);
-GPIO12.associatedPins[0].$name = "CH8";
+GPIO12.associatedPins[0].$name = "CH1";
 GPIO12.associatedPins[0].direction = "INPUT";
 GPIO12.associatedPins[0].pin.$assign = "PA0";
-GPIO12.associatedPins[1].$name = "CH7";
+GPIO12.associatedPins[1].$name = "CH2";
 GPIO12.associatedPins[1].direction = "INPUT";
 GPIO12.associatedPins[1].pin.$assign = "PA7";
-GPIO12.associatedPins[2].$name = "CH6";
+GPIO12.associatedPins[2].$name = "CH3";
 GPIO12.associatedPins[2].direction = "INPUT";
 GPIO12.associatedPins[2].pin.$assign = "PA9";
-GPIO12.associatedPins[3].$name = "CH5";
+GPIO12.associatedPins[3].$name = "CH4";
 GPIO12.associatedPins[3].direction = "INPUT";
 GPIO12.associatedPins[3].pin.$assign = "PA12";
-GPIO12.associatedPins[4].$name = "CH4";
+GPIO12.associatedPins[4].$name = "CH5";
 GPIO12.associatedPins[4].direction = "INPUT";
 GPIO12.associatedPins[4].pin.$assign = "PA24";
-GPIO12.associatedPins[5].$name = "CH3";
+GPIO12.associatedPins[5].$name = "CH6";
 GPIO12.associatedPins[5].direction = "INPUT";
 GPIO12.associatedPins[5].pin.$assign = "PA27";
 
 GPIO13.port = "PORTB";
 GPIO13.$name = "TRACK_B";
 GPIO13.associatedPins.create(2);
-GPIO13.associatedPins[0].$name = "CH2";
+GPIO13.associatedPins[0].$name = "CH7";
 GPIO13.associatedPins[0].direction = "INPUT";
 GPIO13.associatedPins[0].pin.$assign = "PB16";
-GPIO13.associatedPins[1].$name = "CH1";
+GPIO13.associatedPins[1].$name = "CH8";
 GPIO13.associatedPins[1].direction = "INPUT";
 GPIO13.associatedPins[1].pin.$assign = "PB17";
 

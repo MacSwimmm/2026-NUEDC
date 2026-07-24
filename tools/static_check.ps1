@@ -25,7 +25,7 @@ foreach ($pin in @('PA8', 'PB18', 'PB19', 'PB25')) {
     }
 }
 
-Write-Host '[3/5] 检查双电机 PWM、双编码器和舵机时基'
+Write-Host '[3/5] 检查双电机 PWM、双编码器、循迹位序和舵机时基'
 $requiredSyscfgFragments = @(
     'PWM1.peripheral.$assign         = "TIMA1"',
     'PWM1.peripheral.ccp0Pin.$assign = "PB2"',
@@ -33,7 +33,11 @@ $requiredSyscfgFragments = @(
     'GPIO10.associatedPins[0].pin.$assign       = "PA26"',
     'GPIO10.associatedPins[1].pin.$assign       = "PA25"',
     'GPIO11.associatedPins[0].pin.$assign       = "PB24"',
-    'GPIO11.associatedPins[1].pin.$assign       = "PB20"'
+    'GPIO11.associatedPins[1].pin.$assign       = "PB20"',
+    'GPIO12.associatedPins[0].$name = "CH1"',
+    'GPIO12.associatedPins[0].pin.$assign = "PA0"',
+    'GPIO13.associatedPins[1].$name = "CH8"',
+    'GPIO13.associatedPins[1].pin.$assign = "PB17"'
 )
 foreach ($fragment in $requiredSyscfgFragments) {
     if (-not $syscfgText.Contains($fragment)) {
@@ -42,6 +46,18 @@ foreach ($fragment in $requiredSyscfgFragments) {
 }
 if ($generatedHeader -notmatch '#define\s+SERVO_PWM_INST_CLK_FREQ\s+1000000') {
     throw '舵机定时器不是 1 MHz，脉宽微秒值将不正确。'
+}
+
+$trackSource = Get-Content -LiteralPath (Join-Path $projectRoot 'BSP\TrackSensor.c') -Raw
+$bspConfig = Get-Content -LiteralPath (Join-Path $projectRoot 'BSP\bsp_config.h') -Raw
+if ($trackSource -notmatch 'TRACK_A_CH1_PIN\)\s*!=\s*0U\)\s*raw\s*\|=\s*0x80U') {
+    throw '循迹位序错误：最左 CH1 必须映射到 bit7。'
+}
+if ($trackSource -notmatch 'TRACK_B_CH8_PIN\)\s*!=\s*0U\)\s*raw\s*\|=\s*0x01U') {
+    throw '循迹位序错误：最右 CH8 必须映射到 bit0。'
+}
+if ($bspConfig -notmatch '#define\s+TRACK_ACTIVE_LOW_MASK\s+0xFFU') {
+    throw '辅助板八路循迹应配置为低电平检测到黑线。'
 }
 
 Write-Host '[4/5] 检查分层和 Keil 源文件清单'

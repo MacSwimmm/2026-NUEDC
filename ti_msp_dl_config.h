@@ -349,33 +349,33 @@ extern "C" {
 /* Port definition for Pin Group TRACK_A */
 #define TRACK_A_PORT                                                     (GPIOA)
 
-/* Defines for CH8: GPIOA.0 with pinCMx 1 on package pin 33 */
-#define TRACK_A_CH8_PIN                                          (DL_GPIO_PIN_0)
-#define TRACK_A_CH8_IOMUX                                         (IOMUX_PINCM1)
-/* Defines for CH7: GPIOA.7 with pinCMx 14 on package pin 49 */
-#define TRACK_A_CH7_PIN                                          (DL_GPIO_PIN_7)
-#define TRACK_A_CH7_IOMUX                                        (IOMUX_PINCM14)
-/* Defines for CH6: GPIOA.9 with pinCMx 20 on package pin 55 */
-#define TRACK_A_CH6_PIN                                          (DL_GPIO_PIN_9)
-#define TRACK_A_CH6_IOMUX                                        (IOMUX_PINCM20)
-/* Defines for CH5: GPIOA.12 with pinCMx 34 on package pin 5 */
-#define TRACK_A_CH5_PIN                                         (DL_GPIO_PIN_12)
-#define TRACK_A_CH5_IOMUX                                        (IOMUX_PINCM34)
-/* Defines for CH4: GPIOA.24 with pinCMx 54 on package pin 25 */
-#define TRACK_A_CH4_PIN                                         (DL_GPIO_PIN_24)
-#define TRACK_A_CH4_IOMUX                                        (IOMUX_PINCM54)
-/* Defines for CH3: GPIOA.27 with pinCMx 60 on package pin 31 */
-#define TRACK_A_CH3_PIN                                         (DL_GPIO_PIN_27)
-#define TRACK_A_CH3_IOMUX                                        (IOMUX_PINCM60)
+/* Defines for CH1: GPIOA.0 with pinCMx 1 on package pin 33 */
+#define TRACK_A_CH1_PIN                                          (DL_GPIO_PIN_0)
+#define TRACK_A_CH1_IOMUX                                         (IOMUX_PINCM1)
+/* Defines for CH2: GPIOA.7 with pinCMx 14 on package pin 49 */
+#define TRACK_A_CH2_PIN                                          (DL_GPIO_PIN_7)
+#define TRACK_A_CH2_IOMUX                                        (IOMUX_PINCM14)
+/* Defines for CH3: GPIOA.9 with pinCMx 20 on package pin 55 */
+#define TRACK_A_CH3_PIN                                          (DL_GPIO_PIN_9)
+#define TRACK_A_CH3_IOMUX                                        (IOMUX_PINCM20)
+/* Defines for CH4: GPIOA.12 with pinCMx 34 on package pin 5 */
+#define TRACK_A_CH4_PIN                                         (DL_GPIO_PIN_12)
+#define TRACK_A_CH4_IOMUX                                        (IOMUX_PINCM34)
+/* Defines for CH5: GPIOA.24 with pinCMx 54 on package pin 25 */
+#define TRACK_A_CH5_PIN                                         (DL_GPIO_PIN_24)
+#define TRACK_A_CH5_IOMUX                                        (IOMUX_PINCM54)
+/* Defines for CH6: GPIOA.27 with pinCMx 60 on package pin 31 */
+#define TRACK_A_CH6_PIN                                         (DL_GPIO_PIN_27)
+#define TRACK_A_CH6_IOMUX                                        (IOMUX_PINCM60)
 /* Port definition for Pin Group TRACK_B */
 #define TRACK_B_PORT                                                     (GPIOB)
 
-/* Defines for CH2: GPIOB.16 with pinCMx 33 on package pin 4 */
-#define TRACK_B_CH2_PIN                                         (DL_GPIO_PIN_16)
-#define TRACK_B_CH2_IOMUX                                        (IOMUX_PINCM33)
-/* Defines for CH1: GPIOB.17 with pinCMx 43 on package pin 14 */
-#define TRACK_B_CH1_PIN                                         (DL_GPIO_PIN_17)
-#define TRACK_B_CH1_IOMUX                                        (IOMUX_PINCM43)
+/* Defines for CH7: GPIOB.16 with pinCMx 33 on package pin 4 */
+#define TRACK_B_CH7_PIN                                         (DL_GPIO_PIN_16)
+#define TRACK_B_CH7_IOMUX                                        (IOMUX_PINCM33)
+/* Defines for CH8: GPIOB.17 with pinCMx 43 on package pin 14 */
+#define TRACK_B_CH8_PIN                                         (DL_GPIO_PIN_17)
+#define TRACK_B_CH8_IOMUX                                        (IOMUX_PINCM43)
 /* Port definition for Pin Group EXT_KEYS */
 #define EXT_KEYS_PORT                                                    (GPIOB)
 

@@ -51,7 +51,7 @@ void GROUP1_IRQHandler(void)
         g_left_count +=
             (DL_GPIO_readPins(ENCODERA_PORT, ENCODERA_E1B_PIN) != 0U) ? 1 : -1;
     }
-    if ((left_status & ENCODERA_E1B_PIN) != 0U) {
+    else if ((left_status & ENCODERA_E1B_PIN) != 0U) {
         g_left_count +=
             (DL_GPIO_readPins(ENCODERA_PORT, ENCODERA_E1A_PIN) == 0U) ? 1 : -1;
     }
@@ -60,7 +60,7 @@ void GROUP1_IRQHandler(void)
         g_right_count +=
             (DL_GPIO_readPins(ENCODERB_PORT, ENCODERB_E2B_PIN) != 0U) ? 1 : -1;
     }
-    if ((right_status & ENCODERB_E2B_PIN) != 0U) {
+    else if ((right_status & ENCODERB_E2B_PIN) != 0U) {
         g_right_count +=
             (DL_GPIO_readPins(ENCODERB_PORT, ENCODERB_E2A_PIN) == 0U) ? 1 : -1;
     }

@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 typedef struct {
-    uint8_t raw_mask;       /* GPIO 原始电平：bit7=CH8 最左，bit0=CH1 最右 */
+    uint8_t raw_mask;       /* GPIO 原始电平：bit7=CH1 最左，bit0=CH8 最右 */
     uint8_t line_mask;      /* 极性统一后：1 表示该通道检测到黑线 */
     uint8_t active_count;   /* 当前检测到黑线的通道数量 */
     uint8_t ready;          /* 连续获得正常图案后置 1 */

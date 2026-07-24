@@ -12,8 +12,8 @@
 #define MOTOR_PWM_PERIOD_COUNTS            8000
 #define MOTOR_PWM_LIMIT_COUNTS             7800
 
-/* 八路循迹模块电平极性，以及允许整车使能前所需的连续正常采样次数。 */
-#define TRACK_ACTIVE_LOW_MASK              0x00U
+/* 辅助板数字输出为白色=1、黑色=0，八路均按低电平检测到黑线。 */
+#define TRACK_ACTIVE_LOW_MASK              0xFFU
 #define TRACK_READY_SAMPLES                4U
 
 /* PA15 电池采样：3.3 V 参考、12 位 ADC、10:1 外部分压的总恢复倍率为 11。 */

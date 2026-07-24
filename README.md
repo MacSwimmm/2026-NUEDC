@@ -116,17 +116,18 @@ TB6612 的电机电源按电机额定电压单独供电；逻辑电源、MCU 和
 
 | 位置 | 通道 | MSPM0 引脚 | 软件位 |
 | --- | --- | --- | --- |
-| 最左 | CH8 | PA0 | bit7 |
-| 左侧 | CH7 | PA7 | bit6 |
-| 左侧 | CH6 | PA9 | bit5 |
-| 中间偏左 | CH5 | PA12 | bit4 |
-| 中间偏右 | CH4 | PA24 | bit3 |
-| 右侧 | CH3 | PA27 | bit2 |
-| 右侧 | CH2 | PB16 | bit1 |
-| 最右 | CH1 | PB17 | bit0 |
+| 最左 | CH1 | PA0 | bit7 |
+| 左侧 | CH2 | PA7 | bit6 |
+| 左侧 | CH3 | PA9 | bit5 |
+| 中间偏左 | CH4 | PA12 | bit4 |
+| 中间偏右 | CH5 | PA24 | bit3 |
+| 右侧 | CH6 | PA27 | bit2 |
+| 右侧 | CH7 | PB16 | bit1 |
+| 最右 | CH8 | PB17 | bit0 |
 
-默认 TRACK_ACTIVE_LOW_MASK = 0x00，即模块输出高电平表示检测到黑线。如果实物
-极性相反，将该宏改为 0xFF。
+上述顺序按实车安装固定为从左到右 CH1～CH8。参考辅助板例程的数字输出定义，
+白色为 1、黑色为 0，因此 `TRACK_ACTIVE_LOW_MASK = 0xFF`；极性统一后的
+`line_mask` 仍保持 1 表示检测到黑线，便于上层算法直接使用。
 
 ### 4.3 128×64 OLED
 
@@ -230,7 +231,7 @@ UART0 每 500 ms 输出一行诊断数据，便于架空调试编码器方向、
 | --- | --- | --- |
 | MOTOR_PWM_PERIOD_COUNTS | 8000 | TIMA1 双路 PWM 周期 |
 | MOTOR_PWM_LIMIT_COUNTS | 7800 | 电机 PWM 安全上限 |
-| TRACK_ACTIVE_LOW_MASK | 0x00 | 八路循迹有效电平 |
+| TRACK_ACTIVE_LOW_MASK | 0xFF | 八路均为低电平检测到黑线 |
 | TRACK_READY_SAMPLES | 4 | 使能前连续正常采样次数 |
 | BATTERY_DIVIDER_RATIO | 11 | 10:1 外部分压的总恢复倍率 |
 | SERVO_MIN/NEUTRAL/MAX_PULSE_US | 1000/1500/2000 | 舵机脉宽范围 |
@@ -269,7 +270,7 @@ keil/Objects/G3507_BASE.hex
 1. 先断开电机主电源，核对 STBY=3.3 V、全部共地和 GPIO 电平。
 2. 将车轮架空，烧录程序；上电默认未使能，方向脚和双路 PWM 都为 0。
 3. 手转左右轮，观察 UART0/OLED 的左右速度符号是否与前进方向一致。
-4. 逐个遮挡 CH8～CH1，确认 OLED 位图顺序和有效电平。
+4. 从最左 CH1 到最右 CH8 逐个遮挡，确认 OLED 位图从 bit7 到 bit0 依次变化，且遮挡黑线时对应位为 1。
 5. 检查 JY901S 页面是否显示 ONLINE，静止时姿态和加速度是否合理。
 6. 接通电机电源，把基础速度先保持在最低档，再按 PB21 短时使能。
 7. 若轮子方向错误，先核对接线，再修改输出符号；若速度符号错误，修改编码器符号。

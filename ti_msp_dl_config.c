@@ -220,21 +220,21 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 
     DL_GPIO_initDigitalInput(ENCODERB_E2B_IOMUX);
 
-    DL_GPIO_initDigitalInput(TRACK_A_CH8_IOMUX);
+    DL_GPIO_initDigitalInput(TRACK_A_CH1_IOMUX);
 
-    DL_GPIO_initDigitalInput(TRACK_A_CH7_IOMUX);
-
-    DL_GPIO_initDigitalInput(TRACK_A_CH6_IOMUX);
-
-    DL_GPIO_initDigitalInput(TRACK_A_CH5_IOMUX);
-
-    DL_GPIO_initDigitalInput(TRACK_A_CH4_IOMUX);
+    DL_GPIO_initDigitalInput(TRACK_A_CH2_IOMUX);
 
     DL_GPIO_initDigitalInput(TRACK_A_CH3_IOMUX);
 
-    DL_GPIO_initDigitalInput(TRACK_B_CH2_IOMUX);
+    DL_GPIO_initDigitalInput(TRACK_A_CH4_IOMUX);
 
-    DL_GPIO_initDigitalInput(TRACK_B_CH1_IOMUX);
+    DL_GPIO_initDigitalInput(TRACK_A_CH5_IOMUX);
+
+    DL_GPIO_initDigitalInput(TRACK_A_CH6_IOMUX);
+
+    DL_GPIO_initDigitalInput(TRACK_B_CH7_IOMUX);
+
+    DL_GPIO_initDigitalInput(TRACK_B_CH8_IOMUX);
 
     DL_GPIO_initDigitalInputFeatures(EXT_KEYS_KEY1_IOMUX,
 		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_UP,
