@@ -234,18 +234,6 @@ extern "C" {
 
 
 
-/* Defines for ADC12_VOLTAGE */
-#define ADC12_VOLTAGE_INST                                                  ADC1
-#define ADC12_VOLTAGE_INST_IRQHandler                            ADC1_IRQHandler
-#define ADC12_VOLTAGE_INST_INT_IRQN                              (ADC1_INT_IRQn)
-#define ADC12_VOLTAGE_ADCMEM_0                                DL_ADC12_MEM_IDX_0
-#define ADC12_VOLTAGE_ADCMEM_0_REF               DL_ADC12_REFERENCE_VOLTAGE_VDDA
-#define ADC12_VOLTAGE_ADCMEM_0_REF_VOLTAGE_V                                     3.3
-#define GPIO_ADC12_VOLTAGE_C0_PORT                                         GPIOA
-#define GPIO_ADC12_VOLTAGE_C0_PIN                                 DL_GPIO_PIN_15
-
-
-
 /* Port definition for Pin Group OLED_RST */
 #define OLED_RST_PORT                                                    (GPIOB)
 
@@ -404,7 +392,6 @@ void SYSCFG_DL_DEBUG_UART_init(void);
 void SYSCFG_DL_JY901S_UART_init(void);
 void SYSCFG_DL_ZIGBEE_UART_init(void);
 void SYSCFG_DL_CAMERA_UART_init(void);
-void SYSCFG_DL_ADC12_VOLTAGE_init(void);
 
 void SYSCFG_DL_SYSTICK_init(void);
 

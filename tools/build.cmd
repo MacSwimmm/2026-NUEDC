@@ -1,6 +1,8 @@
 @echo off
 setlocal
 
+rem Rebuild with the verified local Keil installation and keep artifacts in the project.
+rem Check the UV4 result, build log, AXF and HEX instead of trusting process exit alone.
 set "UV4=C:\Keil_v5\UV4\UV4.exe"
 set "PROJECT_ROOT=%~dp0.."
 set "PROJECT=%PROJECT_ROOT%\keil\G3507-BASE.uvprojx"
@@ -19,6 +21,7 @@ if not exist "%PROJECT%" (
 )
 
 pushd "%PROJECT_ROOT%\keil"
+rem -r performs a full rebuild; the Keil pre-build step regenerates SysConfig output.
 "%UV4%" -r "G3507-BASE.uvprojx" -o "build.log"
 set "UV4_RESULT=%ERRORLEVEL%"
 popd
@@ -26,6 +29,7 @@ popd
 if exist "%LOG%" type "%LOG%"
 if not "%UV4_RESULT%"=="0" exit /b %UV4_RESULT%
 
+rem Treat the Keil log and output artifacts as the actual build evidence.
 findstr /C:"0 Error(s)" "%LOG%" >nul
 if errorlevel 1 (
   echo [ERROR] Keil log does not contain a successful build result.

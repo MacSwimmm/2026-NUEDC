@@ -5,6 +5,8 @@
 没有弯道、路口等复杂赛道状态机。
 
 > **TB6612 的 STBY 直接接 3.3 V。PA8 在 SysConfig 中没有分配，也没有任何软件控制。**
+>
+> **工程不再配置 ADC 或电池电压采样，PA15 已解除复用并保持未分配。**
 
 ## 1. 为什么一个 PWM 实例可以控制两个电机
 
@@ -37,13 +39,12 @@ G3507-BASE/
 │  ├─ Display.c/.h           OLED 三页参数显示
 │  └─ app_config.h           车辆机械参数、方向、PI 和循迹参数
 ├─ BSP/
-│  ├─ bsp_config.h           PWM、传感器极性、分压和执行器硬件参数
+│  ├─ bsp_config.h           PWM、传感器极性和执行器硬件参数
 │  ├─ Board.c/.h             时基、LED、延时和临界区
 │  ├─ Motor.c/.h             TB6612 双路电机驱动
 │  ├─ Encoder.c/.h           两套 A/B 相编码器计数
 │  ├─ TrackSensor.c/.h       八路数字循迹采样
 │  ├─ Key.c/.h               三个按键消抖
-│  ├─ ADC.c/.h               电池电压采样
 │  ├─ Servo.c/.h             两路 50 Hz 舵机
 │  ├─ Actuator.c/.h          电磁铁、机构 PWM、蜂鸣器和通用使能
 │  ├─ Serial.c/.h            调试、透明传输和相机串口发送接口
@@ -60,7 +61,7 @@ G3507-BASE/
 
 分层规则：
 
-- BSP 只处理 GPIO、定时器、UART、ADC 等硬件细节。
+- BSP 只处理 GPIO、定时器、UART、软件 SPI 等硬件细节。
 - Algorithm 只进行 PI 和循迹差速计算。
 - APP 负责把传感器、算法、执行器和显示组合成完整车辆功能。
 - ti_msp_dl_config.c/.h 由 SysConfig 生成，不手工修改。
@@ -87,7 +88,6 @@ TIMG0 每 1 ms 产生一次中断，每 5 次执行一轮底盘闭环：
 | 0 | GPIOA/GPIOB Group1 | 两套编码器边沿计数 |
 | 1 | UART2 | JY901S 字节接收 |
 | 2 | TIMG0 | 1 ms 时基与 5 ms 控制 |
-| 3 | ADC1 | 电池转换完成 |
 
 ## 4. 接线表
 
@@ -171,7 +171,6 @@ OLED 使用参考工程已经验证的软件四线 SPI 参数，不占用硬件 
 | 舵机 2 | PB11 | TIMG8_C1，50 Hz，默认 1500 μs |
 | 电磁铁功率控制 | PA2 | TIMG7_C1，20 kHz，默认 0% |
 | 机构 PWM 0/1 | PB26 / PB27 | TIMG6_C0/C1，默认 0 |
-| 电池电压 | PA15 | ADC1_CH0 |
 | 扩展按键 1/2 | PB0 / PB1 | 内部上拉，低电平按下 |
 | 有源蜂鸣器 | PB23 | 默认关闭 |
 | 通用使能 | PA1 | 默认低电平 |
@@ -187,6 +186,7 @@ SysConfig 外设和引脚配置，具体扩展器件协议应在后续 BSP 中�
 | 引脚 | 当前处理 |
 | --- | --- |
 | PA8 | 不分配；TB6612 STBY 固定接 3.3 V |
+| PA15 | 不分配；ADC 功能已从 SysConfig 和工程源码移除 |
 | PB18 | 不分配，保留模拟扩展 |
 | PB19 | 不分配，保留模拟扩展 |
 | PB25 | 不分配，保留模拟扩展 |
@@ -206,7 +206,7 @@ OLED 页面：
 
 1. 循迹位图、误差、左右目标速度、实际速度和 PWM。
 2. JY901S 在线状态、姿态角、角速度、加速度和温度。
-3. 电池电压、基础速度和两路舵机脉宽。
+3. 基础速度、使能拒绝次数和两路舵机脉宽。
 
 UART0 每 500 ms 输出一行诊断数据，便于架空调试编码器方向、速度和循迹输入。
 
@@ -233,7 +233,6 @@ UART0 每 500 ms 输出一行诊断数据，便于架空调试编码器方向、
 | MOTOR_PWM_LIMIT_COUNTS | 7800 | 电机 PWM 安全上限 |
 | TRACK_ACTIVE_LOW_MASK | 0xFF | 八路均为低电平检测到黑线 |
 | TRACK_READY_SAMPLES | 4 | 使能前连续正常采样次数 |
-| BATTERY_DIVIDER_RATIO | 11 | 10:1 外部分压的总恢复倍率 |
 | SERVO_MIN/NEUTRAL/MAX_PULSE_US | 1000/1500/2000 | 舵机脉宽范围 |
 | JY901S_OFFLINE_TIMEOUT_MS | 500 | IMU 离线判定时间 |
 

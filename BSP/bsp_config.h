@@ -1,11 +1,13 @@
 #ifndef G3507_BASE_BSP_CONFIG_H
 #define G3507_BASE_BSP_CONFIG_H
 
-/*
- * BSP 硬件参数集中配置。
+/**
+ * @file bsp_config.h
+ * @brief 不由 SysConfig 自动表达的板级常量集中配置。
  *
- * 这里保存与定时器、传感器电平、分压网络和执行器脉宽直接相关的参数；
+ * 这里保存与定时器、传感器电平和执行器脉宽直接相关的参数；
  * 车辆速度、机械尺寸和控制器系数仍放在 APP/app_config.h。
+ * 修改本文件前应先确认对应 SysConfig 周期/时钟没有变化。
  */
 
 /* TIMA1 双路电机 PWM：80 MHz / 8000 = 10 kHz，并保留 200 计数余量。 */
@@ -15,11 +17,6 @@
 /* 辅助板数字输出为白色=1、黑色=0，八路均按低电平检测到黑线。 */
 #define TRACK_ACTIVE_LOW_MASK              0xFFU
 #define TRACK_READY_SAMPLES                4U
-
-/* PA15 电池采样：3.3 V 参考、12 位 ADC、10:1 外部分压的总恢复倍率为 11。 */
-#define BATTERY_ADC_REFERENCE_V            3.3f
-#define BATTERY_ADC_FULL_SCALE             4096.0f
-#define BATTERY_DIVIDER_RATIO              11.0f
 
 /* TIMG8 为 1 us/计数，舵机安全脉宽范围 1000~2000 us。 */
 #define SERVO_MIN_PULSE_US                 1000U

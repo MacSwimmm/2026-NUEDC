@@ -4,17 +4,21 @@
 
 #include "ti_msp_dl_config.h"
 
+/* 防止外设异常时永久卡死；这是循环次数上限，不是精确的毫秒超时。 */
 #define UART_TX_TIMEOUT_LOOPS 100000U
 
+/** @brief 三路串口共用的逐字节发送实现。 */
 static bool WritePort(UART_Regs *instance, const uint8_t *data, uint16_t length)
 {
     uint16_t i;
 
+    /* 长度为 0 时允许 data=NULL；有数据时空指针直接判错。 */
     if ((data == NULL) && (length != 0U)) return false;
 
     for (i = 0U; i < length; i++) {
         uint32_t timeout = UART_TX_TIMEOUT_LOOPS;
 
+        /* 仅等待 FIFO 出现空位，不等待最后一个字节完全移出 TX 引脚。 */
         while (DL_UART_Main_isTXFIFOFull(instance)) {
             if (--timeout == 0U) return false;
         }

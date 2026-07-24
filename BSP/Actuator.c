@@ -5,6 +5,7 @@
 #define MAGNET_PWM_PERIOD_COUNTS     4000U
 #define MECHANISM_PWM_PERIOD_COUNTS  8000U
 
+/* 对机构 PWM 原始比较值做无符号上限保护。 */
 static uint16_t ClampU16(uint16_t value, uint16_t maximum)
 {
     return (value > maximum) ? maximum : value;
@@ -35,6 +36,7 @@ void Actuator_SetMagnetPermille(uint16_t duty_permille)
 
 void Actuator_SetMechanismPWM(uint16_t channel0, uint16_t channel1)
 {
+    /* 两个通道共用 TIMG6 周期，但比较值独立，可分别控制两个机构输出。 */
     DL_Timer_setCaptureCompareValue(
         MECHANISM_PWM_INST,
         ClampU16(channel0, MECHANISM_PWM_PERIOD_COUNTS),
@@ -47,6 +49,7 @@ void Actuator_SetMechanismPWM(uint16_t channel0, uint16_t channel1)
 
 void Actuator_SetBuzzer(bool enabled)
 {
+    /* 有源蜂鸣器只需稳定高/低电平，不在这里产生音调 PWM。 */
     if (enabled) {
         DL_GPIO_setPins(BUZZER_PORT, BUZZER_PIN_BUZZER_PIN);
     } else {
@@ -56,6 +59,7 @@ void Actuator_SetBuzzer(bool enabled)
 
 void Actuator_SetGeneralEnable(bool enabled)
 {
+    /* 通用使能的外部负载由后续题目决定，本层只保证电平可控且默认关闭。 */
     if (enabled) {
         DL_GPIO_setPins(GENERAL_EN_PORT, GENERAL_EN_PIN_EN_PIN);
     } else {

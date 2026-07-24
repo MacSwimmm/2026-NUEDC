@@ -3,12 +3,14 @@
 #include "bsp_config.h"
 #include "ti_msp_dl_config.h"
 
+/* 保存实际限幅后的脉宽，供 OLED 系统页显示。 */
 static uint16_t g_servo_pulse[2] = {
     SERVO_NEUTRAL_PULSE_US, SERVO_NEUTRAL_PULSE_US
 };
 
 static uint16_t ClampPulse(uint16_t pulse_us)
 {
+    /* 限幅保护舵机机械行程，实际安全范围仍应按具体舵机和机构校准。 */
     if (pulse_us < SERVO_MIN_PULSE_US) return SERVO_MIN_PULSE_US;
     if (pulse_us > SERVO_MAX_PULSE_US) return SERVO_MAX_PULSE_US;
     return pulse_us;
@@ -16,6 +18,7 @@ static uint16_t ClampPulse(uint16_t pulse_us)
 
 void Servo_Init(void)
 {
+    /* 上电先回中位，避免沿用调试器复位前的任意比较值。 */
     Servo_SetPulseUS(1U, SERVO_NEUTRAL_PULSE_US);
     Servo_SetPulseUS(2U, SERVO_NEUTRAL_PULSE_US);
 }
@@ -43,6 +46,7 @@ void Servo_SetAngle(uint8_t channel, uint8_t angle_deg)
 {
     uint32_t pulse;
 
+    /* 使用整数线性插值，避免在底层驱动引入浮点运算。 */
     if (angle_deg > 180U) angle_deg = 180U;
     pulse = SERVO_MIN_PULSE_US +
             ((uint32_t)(SERVO_MAX_PULSE_US - SERVO_MIN_PULSE_US) * angle_deg) / 180U;

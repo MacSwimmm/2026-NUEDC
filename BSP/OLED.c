@@ -9,8 +9,10 @@
 #define OLED_COMMAND 0U
 #define OLED_DATA    1U
 
+/* 显存按“列×页”组织，与 SSD1306 页寻址模式的发送顺序一致。 */
 uint8_t OLED_GRAM[OLED_WIDTH][OLED_HEIGHT / 8U];
 
+/* 以下四个小函数集中封装 GPIO 极性，避免软件 SPI 主流程散落寄存器操作。 */
 static void SetRST(uint8_t high)
 {
     if (high != 0U) DL_GPIO_setPins(OLED_RST_PORT, OLED_RST_PIN_RST_PIN);
@@ -45,6 +47,7 @@ static void WriteByte(uint8_t value, uint8_t is_data)
 {
     uint8_t i;
 
+    /* MSB 先发；时钟低电平期间准备数据，上升沿由 OLED 采样。 */
     SetDC(is_data);
     for (i = 0U; i < 8U; i++) {
         SetClock(0U);
@@ -60,6 +63,7 @@ void OLED_Refresh(void)
     uint8_t page;
     uint8_t column;
 
+    /* 每页重新设置页地址和列地址，确保整帧刷新不依赖控制器上次游标位置。 */
     for (page = 0U; page < 8U; page++) {
         WriteByte((uint8_t)(0xB0U + page), OLED_COMMAND);
         WriteByte(0x00U, OLED_COMMAND);
@@ -86,6 +90,7 @@ static void DrawPoint(uint8_t x, uint8_t y, uint8_t enabled)
     uint8_t page;
     uint8_t bit;
 
+    /* 越界像素直接忽略，使上层文本绘制无需为最后一列增加特殊分支。 */
     if ((x >= OLED_WIDTH) || (y >= OLED_HEIGHT)) return;
 
     /* 与 SSD1306 的 C0 扫描方向配套，使应用层 y=0 始终表示屏幕顶端。 */
@@ -124,6 +129,7 @@ void OLED_ShowChar(uint8_t x, uint8_t y, char character)
 
 void OLED_ShowString(uint8_t x, uint8_t y, const char *text)
 {
+    /* 当前字符占用 8 像素水平步长，其中有效字形宽度为 6 像素。 */
     while ((*text != '\0') && (x <= 120U)) {
         OLED_ShowChar(x, y, *text++);
         x = (uint8_t)(x + 8U);
@@ -135,6 +141,7 @@ void OLED_ShowUnsigned(uint8_t x, uint8_t y, uint32_t value, uint8_t digits)
     char buffer[11];
     uint8_t i;
 
+    /* uint32_t 最多 10 位十进制数字，限制长度避免写出本地缓冲。 */
     if (digits > 10U) digits = 10U;
     buffer[digits] = '\0';
     for (i = 0U; i < digits; i++) {
@@ -146,6 +153,7 @@ void OLED_ShowUnsigned(uint8_t x, uint8_t y, uint32_t value, uint8_t digits)
 
 void OLED_Init(void)
 {
+    /* 硬件复位后等待模块电源和内部电荷泵稳定，再发送初始化命令序列。 */
     SetRST(0U);
     Board_DelayMs(120U);
     SetRST(1U);

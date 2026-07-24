@@ -1,9 +1,15 @@
 [CmdletBinding()]
 param()
 
+# 本脚本用于构建前的工程边界检查：
+# 1. 先根据 .syscfg 重新生成代码，避免检查过期文件；
+# 2. 验证保留引脚、双轮闭环、循迹位序以及 ADC 已彻底解除；
+# 3. 验证 APP/BSP/Algorithm 分层和 Keil 源文件清单；
+# 4. 阻止被明确排除的功能说明重新混入基础工程。
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $syscfgPath = Join-Path $projectRoot 'G3507-BASE.syscfg'
+$generatedSourcePath = Join-Path $projectRoot 'ti_msp_dl_config.c'
 $generatedHeaderPath = Join-Path $projectRoot 'ti_msp_dl_config.h'
 $keilProjectPath = Join-Path $projectRoot 'keil\G3507-BASE.uvprojx'
 
@@ -14,14 +20,28 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $syscfgText = Get-Content -LiteralPath $syscfgPath -Raw
+$generatedSource = Get-Content -LiteralPath $generatedSourcePath -Raw
 $generatedHeader = Get-Content -LiteralPath $generatedHeaderPath -Raw
 $keilProject = Get-Content -LiteralPath $keilProjectPath -Raw
 
-Write-Host '[2/5] 检查保留引脚没有被分配'
-foreach ($pin in @('PA8', 'PB18', 'PB19', 'PB25')) {
+Write-Host '[2/5] 检查保留引脚和 ADC 移除边界'
+foreach ($pin in @('PA8', 'PA15', 'PB18', 'PB19', 'PB25')) {
     $assignmentPattern = '\$assign\s*=\s*"' + [regex]::Escape($pin) + '"'
     if ($syscfgText -match $assignmentPattern) {
         throw "保留引脚被 SysConfig 分配：$pin"
+    }
+}
+
+foreach ($adcFile in @('BSP\ADC.c', 'BSP\ADC.h')) {
+    if (Test-Path -LiteralPath (Join-Path $projectRoot $adcFile)) {
+        throw "ADC 驱动文件仍然存在：$adcFile"
+    }
+}
+foreach ($configuredText in @($syscfgText, $generatedSource, $generatedHeader, $keilProject)) {
+    if (($configuredText -match 'ADC12_VOLTAGE') -or
+        ($configuredText -match '/ti/driverlib/ADC12') -or
+        ($configuredText -match '<FileName>ADC\.(c|h)</FileName>')) {
+        throw '工程仍包含 ADC 外设配置或 ADC 驱动条目。'
     }
 }
 

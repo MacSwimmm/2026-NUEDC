@@ -1,12 +1,13 @@
 /**
- * Minimal TianMengXing MSPM0G3507 tracking-car base configuration.
+ * 嘉立创·天猛星 MSPM0G3507 循迹小车基础外设配置。
+ *
+ * 本文件是 GPIO、PWM、UART、I2C 和定时器分配的唯一配置源；
+ * ti_msp_dl_config.c/.h 由 SysConfig 自动生成，禁止手工修改。
  *
  * @cliArgs --device "MSPM0G350X" --package "LQFP-64(PM)" --part "Default" --product "mspm0_sdk@2.01.00.03"
  * @versions {"tool":"1.20.0+3587"}
  */
 
-const ADC12   = scripting.addModule("/ti/driverlib/ADC12", {}, false);
-const ADC121  = ADC12.addInstance();
 const GPIO    = scripting.addModule("/ti/driverlib/GPIO", {}, false);
 const GPIO1   = GPIO.addInstance();
 const GPIO2   = GPIO.addInstance();
@@ -41,7 +42,7 @@ const UART2   = UART.addInstance();
 const UART3   = UART.addInstance();
 const UART4   = UART.addInstance();
 
-/* 80 MHz CPU clock, matching the proven Arc_Track project. */
+/* CPU 主频配置为 80 MHz，与已跑通 Arc_Track 底盘工程保持一致。 */
 const divider7       = system.clockTree["PLL_PDIV"];
 divider7.divideValue = 2;
 
@@ -61,22 +62,7 @@ SYSTICK.periodEnable  = true;
 SYSTICK.systickEnable = true;
 SYSTICK.period        = 16777216;
 
-/*
- * 外部电池分压输入。PA15 在天猛星板上没有自动连接电池，必须由车体底板
- * 将电池正极经分压网络接入；严禁把电池或 5 V 直接接到 PA15。
- */
-ADC121.$name                             = "ADC12_VOLTAGE";
-ADC121.sampClkDiv                        = "DL_ADC12_CLOCK_DIVIDE_8";
-ADC121.repeatMode                        = false;
-ADC121.sampleTime0                       = "0.006 ms";
-ADC121.enabledInterrupts                 = ["DL_ADC12_INTERRUPT_MEM0_RESULT_LOADED"];
-ADC121.interruptPriority                 = "3";
-ADC121.adcPin0Config.$name               = "ti_driverlib_gpio_ADC12_VOLTAGE_C0";
-ADC121.adcPin0Config.hideOutputInversion = scripting.forceWrite(false);
-ADC121.peripheral.$assign                = "ADC1";
-ADC121.peripheral.adcPin0.$assign        = "PA15";
-
-/* Four-wire software OLED. */
+/* SSD1306 四线软件 SPI：SCL/SDA 由 GPIO 模拟，RST/DC 为控制引脚。 */
 GPIO1.$name                           = "OLED_RST";
 GPIO1.associatedPins[0].$name         = "PIN_RST";
 GPIO1.associatedPins[0].initialValue  = "SET";
@@ -97,26 +83,26 @@ GPIO4.associatedPins[0].$name         = "PIN_SDA";
 GPIO4.associatedPins[0].initialValue  = "SET";
 GPIO4.associatedPins[0].pin.$assign   = "PA31";
 
-/* TianMengXing user button: PB21, active low, internal pull-up. */
+/* 天猛星板载用户按键 PB21：内部上拉，按下时为低电平。 */
 GPIO5.$name                                = "USER_KEY";
 GPIO5.associatedPins[0].$name              = "PIN_KEY";
 GPIO5.associatedPins[0].direction          = "INPUT";
 GPIO5.associatedPins[0].internalResistor   = "PULL_UP";
 GPIO5.associatedPins[0].pin.$assign        = "PB21";
 
-/* TianMengXing on-board LED: PB22, active high. */
+/* 天猛星板载 LED PB22：高电平点亮。 */
 GPIO6.$name                           = "BOARD_LED";
 GPIO6.associatedPins[0].$name         = "PIN_LED";
 GPIO6.associatedPins[0].initialValue  = "CLEARED";
 GPIO6.associatedPins[0].pin.$assign   = "PB22";
 
-/* Keep the on-board W25Q128 deselected. PB7-PB9 remain unused/high impedance. */
+/* 板载 W25Q128 的 CS(PB6) 始终拉高；PB7~PB9 保持未分配/高阻。 */
 GPIO7.$name                           = "FLASH_GUARD";
 GPIO7.associatedPins[0].$name         = "PIN_CS";
 GPIO7.associatedPins[0].initialValue  = "SET";
 GPIO7.associatedPins[0].pin.$assign   = "PB6";
 
-/* TB6612 direction outputs. */
+/* TB6612 左右电机方向输出；STBY 硬件固定接 3.3 V，不分配 MCU 引脚。 */
 GPIO8.port                          = "PORTA";
 GPIO8.$name                         = "BIN";
 GPIO8.associatedPins.create(2);
@@ -133,7 +119,7 @@ GPIO9.associatedPins[0].pin.$assign = "PA13";
 GPIO9.associatedPins[1].$name       = "AIN2";
 GPIO9.associatedPins[1].pin.$assign = "PA14";
 
-/* Quadrature encoders, preserving the proven interrupt mapping. */
+/* 两套正交编码器 A/B 相上升沿中断，引脚与已跑通 Arc_Track 保持一致。 */
 GPIO10.$name                               = "ENCODERA";
 GPIO10.associatedPins.create(2);
 GPIO10.associatedPins[0].$name             = "E1A";
@@ -164,7 +150,7 @@ GPIO11.associatedPins[1].interruptPriority = "0";
 GPIO11.associatedPins[1].interruptEn       = true;
 GPIO11.associatedPins[1].pin.$assign       = "PB20";
 
-/* Eight digital tracking inputs. The physical module is installed CH1 to CH8 from left to right. */
+/* 八路数字循迹输入：实车从左到右固定安装 CH1~CH8。 */
 GPIO12.port = "PORTA";
 GPIO12.$name = "TRACK_A";
 GPIO12.associatedPins.create(6);
@@ -197,7 +183,7 @@ GPIO13.associatedPins[1].$name = "CH8";
 GPIO13.associatedPins[1].direction = "INPUT";
 GPIO13.associatedPins[1].pin.$assign = "PB17";
 
-/* Two optional expansion buttons, both active low with internal pull-ups. */
+/* 两个扩展按键均使用内部上拉，按下时为低电平。 */
 GPIO14.port = "PORTB";
 GPIO14.$name = "EXT_KEYS";
 GPIO14.associatedPins.create(2);
@@ -210,19 +196,19 @@ GPIO14.associatedPins[1].direction = "INPUT";
 GPIO14.associatedPins[1].internalResistor = "PULL_UP";
 GPIO14.associatedPins[1].pin.$assign = "PB1";
 
-/* Active buzzer control: power-on default is off. */
+/* 有源蜂鸣器控制，上电默认输出低电平关闭。 */
 GPIO15.$name = "BUZZER";
 GPIO15.associatedPins[0].$name = "PIN_BUZZER";
 GPIO15.associatedPins[0].initialValue = "CLEARED";
 GPIO15.associatedPins[0].pin.$assign = "PB23";
 
-/* General-purpose enable/output: power-on default is off. */
+/* 通用使能输出，上电默认低电平关闭。 */
 GPIO16.$name = "GENERAL_EN";
 GPIO16.associatedPins[0].$name = "PIN_EN";
 GPIO16.associatedPins[0].initialValue = "CLEARED";
 GPIO16.associatedPins[0].pin.$assign = "PA1";
 
-/* 10 kHz dual PWM, unchanged from the proven chassis project. */
+/* TIMA1 双通道 10 kHz 电机 PWM，周期和引脚沿用已跑通底盘。 */
 PWM1.$name                      = "PWM_0";
 PWM1.timerStartTimer            = true;
 PWM1.pwmMode                    = "EDGE_ALIGN_UP";
@@ -235,7 +221,7 @@ PWM1.PWM_CHANNEL_1.$name        = "ti_driverlib_pwm_PWMTimerCC1";
 PWM1.ccp0PinConfig.$name        = "ti_driverlib_gpio_PWM_C0";
 PWM1.ccp1PinConfig.$name        = "ti_driverlib_gpio_PWM_C1";
 
-/* Two 50 Hz servo outputs. TIMG8 BUSCLK is 40 MHz: 40 MHz / 40 / 20000. */
+/* 两路 50 Hz 舵机 PWM：TIMG8 时钟 40 MHz / 40 / 20000，得到 1 us 计数。 */
 PWM2.$name                      = "SERVO_PWM";
 PWM2.timerStartTimer            = true;
 PWM2.pwmMode                    = "EDGE_ALIGN_UP";
@@ -249,7 +235,7 @@ PWM2.PWM_CHANNEL_1.$name        = "ti_driverlib_pwm_SERVO_CC1";
 PWM2.ccp0PinConfig.$name        = "ti_driverlib_gpio_SERVO_C0";
 PWM2.ccp1PinConfig.$name        = "ti_driverlib_gpio_SERVO_C1";
 
-/* 20 kHz electromagnet/auxiliary power PWM; output starts at zero. */
+/* 20 kHz 电磁铁/功率模块 PWM，上电比较值为 0。 */
 PWM3.$name                      = "MAGNET_PWM";
 PWM3.timerStartTimer            = true;
 PWM3.pwmMode                    = "EDGE_ALIGN_UP";
@@ -260,7 +246,7 @@ PWM3.peripheral.ccp1Pin.$assign = "PA2";
 PWM3.PWM_CHANNEL_1.$name        = "ti_driverlib_pwm_MAGNET_CC1";
 PWM3.ccp1PinConfig.$name        = "ti_driverlib_gpio_MAGNET_C1";
 
-/* Generic two-channel mechanism PWM/step outputs, both default to zero. */
+/* 两路通用机构 PWM/步进脉冲输出，上电比较值均为 0。 */
 PWM4.$name                      = "MECHANISM_PWM";
 PWM4.timerStartTimer            = true;
 PWM4.pwmMode                    = "EDGE_ALIGN_UP";
@@ -273,7 +259,7 @@ PWM4.PWM_CHANNEL_1.$name        = "ti_driverlib_pwm_MECHANISM_CC1";
 PWM4.ccp0PinConfig.$name        = "ti_driverlib_gpio_MECHANISM_C0";
 PWM4.ccp1PinConfig.$name        = "ti_driverlib_gpio_MECHANISM_C1";
 
-/* One millisecond time base; chassis control executes every fifth tick. */
+/* 1 ms 系统时基；Board 层每累计 5 次调用一轮底盘闭环。 */
 TIMER1.$name              = "SYSTEM_TICK";
 TIMER1.timerClkPrescale   = 32;
 TIMER1.timerMode          = "PERIODIC";
@@ -283,7 +269,7 @@ TIMER1.interrupts         = ["ZERO"];
 TIMER1.interruptPriority  = "2";
 TIMER1.peripheral.$assign = "TIMG0";
 
-/* On-board Type-C/CH340 diagnostics. No receive command/control path. */
+/* 板载 Type-C/CH340 调试串口，仅用于日志，不提供接收控制入口。 */
 UART1.$name                    = "DEBUG_UART";
 UART1.targetBaudRate           = 115200;
 UART1.peripheral.$assign       = "UART0";
@@ -292,7 +278,7 @@ UART1.peripheral.txPin.$assign = "PA10";
 UART1.txPinConfig.$name        = "ti_driverlib_gpio_DEBUG_UART_TX";
 UART1.rxPinConfig.$name        = "ti_driverlib_gpio_DEBUG_UART_RX";
 
-/* JY901S receive port, 9600 8N1 by default. */
+/* JY901S 接收串口，默认 9600 8N1，RX FIFO 中断解析 0x55 帧。 */
 UART2.$name                    = "JY901S_UART";
 UART2.targetBaudRate           = 9600;
 UART2.enabledInterrupts        = ["RX"];
@@ -303,7 +289,7 @@ UART2.peripheral.txPin.$assign = "PA21";
 UART2.txPinConfig.$name        = "ti_driverlib_gpio_JY901S_UART_TX";
 UART2.rxPinConfig.$name        = "ti_driverlib_gpio_JY901S_UART_RX";
 
-/* Optional 3.3 V DRF1609H ZigBee transparent link; no motion-control parser. */
+/* 可选 3.3 V DRF1609H ZigBee 透明串口，仅保留发送接口，不解析运动命令。 */
 UART3.$name                    = "ZIGBEE_UART";
 UART3.targetBaudRate           = 38400;
 UART3.peripheral.$assign       = "UART1";
@@ -312,7 +298,7 @@ UART3.peripheral.txPin.$assign = "PB4";
 UART3.txPinConfig.$name        = "ti_driverlib_gpio_ZIGBEE_UART_TX";
 UART3.rxPinConfig.$name        = "ti_driverlib_gpio_ZIGBEE_UART_RX";
 
-/* Reserved camera/vision serial port. */
+/* 预留相机/视觉串口，当前仅提供基础发送接口。 */
 UART4.$name                    = "CAMERA_UART";
 UART4.targetBaudRate           = 115200;
 UART4.peripheral.$assign       = "UART3";
@@ -321,7 +307,7 @@ UART4.peripheral.txPin.$assign = "PB12";
 UART4.txPinConfig.$name        = "ti_driverlib_gpio_CAMERA_UART_TX";
 UART4.rxPinConfig.$name        = "ti_driverlib_gpio_CAMERA_UART_RX";
 
-/* Reserved 400 kHz expansion I2C controller. */
+/* 预留 400 kHz 扩展 I2C 控制器，具体器件协议由后续 BSP 添加。 */
 I2C1.$name                   = "EXPANSION_I2C";
 I2C1.basicEnableController   = true;
 I2C1.basicControllerBusSpeed = 400000;

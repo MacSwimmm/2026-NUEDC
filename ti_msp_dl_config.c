@@ -65,7 +65,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     SYSCFG_DL_JY901S_UART_init();
     SYSCFG_DL_ZIGBEE_UART_init();
     SYSCFG_DL_CAMERA_UART_init();
-    SYSCFG_DL_ADC12_VOLTAGE_init();
     SYSCFG_DL_SYSTICK_init();
     /* Ensure backup structures have no valid state */
 	gPWM_0Backup.backupRdy 	= false;
@@ -118,7 +117,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_UART_Main_reset(JY901S_UART_INST);
     DL_UART_Main_reset(ZIGBEE_UART_INST);
     DL_UART_Main_reset(CAMERA_UART_INST);
-    DL_ADC12_reset(ADC12_VOLTAGE_INST);
 
 
     DL_GPIO_enablePower(GPIOA);
@@ -133,7 +131,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_UART_Main_enablePower(JY901S_UART_INST);
     DL_UART_Main_enablePower(ZIGBEE_UART_INST);
     DL_UART_Main_enablePower(CAMERA_UART_INST);
-    DL_ADC12_enablePower(ADC12_VOLTAGE_INST);
 
     delay_cycles(POWER_STARTUP_DELAY);
 }
@@ -703,26 +700,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_CAMERA_UART_init(void)
 
 
     DL_UART_Main_enable(CAMERA_UART_INST);
-}
-
-/* ADC12_VOLTAGE Initialization */
-static const DL_ADC12_ClockConfig gADC12_VOLTAGEClockConfig = {
-    .clockSel       = DL_ADC12_CLOCK_SYSOSC,
-    .divideRatio    = DL_ADC12_CLOCK_DIVIDE_8,
-    .freqRange      = DL_ADC12_CLOCK_FREQ_RANGE_24_TO_32,
-};
-SYSCONFIG_WEAK void SYSCFG_DL_ADC12_VOLTAGE_init(void)
-{
-    DL_ADC12_setClockConfig(ADC12_VOLTAGE_INST, (DL_ADC12_ClockConfig *) &gADC12_VOLTAGEClockConfig);
-    DL_ADC12_configConversionMem(ADC12_VOLTAGE_INST, ADC12_VOLTAGE_ADCMEM_0,
-        DL_ADC12_INPUT_CHAN_0, DL_ADC12_REFERENCE_VOLTAGE_VDDA, DL_ADC12_SAMPLE_TIMER_SOURCE_SCOMP0, DL_ADC12_AVERAGING_MODE_DISABLED,
-        DL_ADC12_BURN_OUT_SOURCE_DISABLED, DL_ADC12_TRIGGER_MODE_AUTO_NEXT, DL_ADC12_WINDOWS_COMP_MODE_DISABLED);
-    DL_ADC12_setSampleTime0(ADC12_VOLTAGE_INST,24);
-    /* Enable ADC12 interrupt */
-    DL_ADC12_clearInterruptStatus(ADC12_VOLTAGE_INST,(DL_ADC12_INTERRUPT_MEM0_RESULT_LOADED));
-    DL_ADC12_enableInterrupt(ADC12_VOLTAGE_INST,(DL_ADC12_INTERRUPT_MEM0_RESULT_LOADED));
-    NVIC_SetPriority(ADC12_VOLTAGE_INST_INT_IRQN, 3);
-    DL_ADC12_enableConversions(ADC12_VOLTAGE_INST);
 }
 
 SYSCONFIG_WEAK void SYSCFG_DL_SYSTICK_init(void)

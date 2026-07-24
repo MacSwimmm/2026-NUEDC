@@ -1,5 +1,10 @@
 #include "PID.h"
 
+/*
+ * 本文件只保存控制器状态并执行公式，不包含电机方向、编码器极性或硬件写寄存器。
+ * 这些与具体车辆相关的约定统一由 APP 和 BSP 负责。
+ */
+
 /**
  * @brief 初始化一套增量式 PI。
  * @param pid          控制器实例
@@ -32,11 +37,14 @@ void PID_IncrementalReset(IncrementalPI_t *pid)
  *   u(k) = u(k-1) + Kp[e(k)-e(k-1)] + Ki*e(k)
  *
  * 这里 target/current 的单位为 m/s，返回值是电机 PWM 计数。
+ * 输出到达限幅后直接钳位，避免累计值继续越界；停车时由调用方显式 Reset，
+ * 因此不会把停车前的积分量带入下一次启动。
  */
 float PID_IncrementalCalculate(IncrementalPI_t *pid, float target, float current)
 {
     float error = target - current;
 
+    /* 增量项叠加到上周期输出，随后保存误差供下一周期使用。 */
     pid->output += pid->kp * (error - pid->last_error) + pid->ki * error;
     pid->last_error = error;
 

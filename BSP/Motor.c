@@ -3,11 +3,13 @@
 #include "bsp_config.h"
 #include "ti_msp_dl_config.h"
 
+/* 保存限幅后的实际命令，供遥测显示；它们不代表电机一定达到对应转速。 */
 static volatile int32_t g_left_pwm = 0;
 static volatile int32_t g_right_pwm = 0;
 
 static int32_t ClampPWM(int32_t pwm)
 {
+    /* 预留 200 个定时器计数余量，不允许控制器写到完整周期 8000。 */
     if (pwm > MOTOR_PWM_LIMIT_COUNTS) return MOTOR_PWM_LIMIT_COUNTS;
     if (pwm < -MOTOR_PWM_LIMIT_COUNTS) return -MOTOR_PWM_LIMIT_COUNTS;
     return pwm;
@@ -19,6 +21,9 @@ static int32_t ClampPWM(int32_t pwm)
  * @param direction_port AIN/BIN 所在 GPIO 端口
  * @param pin1/pin2      对应的两根方向引脚
  * @param compare_index  TIMA1 的 C0 或 C1 比较通道
+ *
+ * 方向脚先写到目标组合，再更新 PWM 比较值。pwm=0 时两个方向脚都拉低，
+ * 本工程采用这种确定的滑行/关闭输入状态，不使用软件刹车模式。
  */
 static void ApplyOneMotor(int32_t pwm, GPIO_Regs *direction_port,
                           uint32_t pin1, uint32_t pin2, uint32_t compare_index)
@@ -46,6 +51,7 @@ void Motor_Init(void)
 
 void Motor_SetPWM(int32_t left_pwm, int32_t right_pwm)
 {
+    /* 左右命令分别限幅并保存，两个 TIMA1 比较通道随后独立更新。 */
     g_left_pwm = ClampPWM(left_pwm);
     g_right_pwm = ClampPWM(right_pwm);
 
