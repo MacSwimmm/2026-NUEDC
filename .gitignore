@@ -1,0 +1,16 @@
+# Keil local output and per-user settings
+keil/Objects/
+keil/Listings/
+keil/build.log
+keil/*.uvguix.*
+keil/*.uvoptx
+keil/*.build_log.htm
+keil/*.map
+keil/*.lst
+
+# Editor and temporary files
+.vscode/
+*.bak
+*.tmp
+*.orig
+Thumbs.db

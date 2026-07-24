@@ -1,0 +1,8 @@
+# SysConfig 与参考字库保留其生成器/原始排版，忽略其中既有的行尾空白。
+/ti_msp_dl_config.c whitespace=-blank-at-eol,-blank-at-eof
+/ti_msp_dl_config.h whitespace=-blank-at-eol,-blank-at-eof
+/BSP/oledfont.h whitespace=-blank-at-eol,-blank-at-eof
+
+# Windows 工具脚本使用 CRLF，其余文本由 Git 正常归一化。
+*.bat text eol=crlf
+*.cmd text eol=crlf
