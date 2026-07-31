@@ -215,18 +215,23 @@ int main(void)
            TELEMETRY_EVENT_RACE_STARTED, 4U);
     StepAt(60U, RACE_STATE_WAITING, RACE_RESULT_NONE,
            TELEMETRY_EVENT_MANUAL_STOP, 5U);
+    /* PB1 直接进入 RUNNING，也必须产生开始事件供电脑端自动记录。 */
+    StepAt(70U, RACE_STATE_RUNNING, RACE_RESULT_NONE,
+           TELEMETRY_EVENT_RACE_STARTED, 6U);
+    StepAt(80U, RACE_STATE_WAITING, RACE_RESULT_NONE,
+           TELEMETRY_EVENT_MANUAL_STOP, 7U);
 
     g_accept_write = false;
-    g_now_ms = 70U;
+    g_now_ms = 90U;
     Telemetry_StreamProcess();
     assert(g_telemetry_watch.frames_dropped == 1U);
 
     g_accept_write = true;
-    g_now_ms = 80U;
+    g_now_ms = 100U;
     Telemetry_StreamProcess();
-    assert(ReadU16(&g_last_frame[6]) == 7U);
+    assert(ReadU16(&g_last_frame[6]) == 9U);
     assert(ReadU16(&g_last_frame[34]) == 1U);
-    assert(g_telemetry_watch.frames_queued == 7U);
+    assert(g_telemetry_watch.frames_queued == 9U);
     assert(g_telemetry_watch.last_frame_length == TELEMETRY_FRAME_LENGTH);
 
     puts("[OK] UART3 telemetry frame, CRC, events and drop handling passed.");

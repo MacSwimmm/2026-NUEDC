@@ -35,6 +35,8 @@ static volatile bool g_manual_speed_mode = false;
 static volatile float g_manual_left_target_mps = 0.0f;
 static volatile float g_manual_right_target_mps = 0.0f;
 static volatile float g_requested_base_speed_mps = TRACK_BASE_SPEED_MPS;
+static volatile float g_tracking_output_scale = 1.0f;
+static float g_base_speed_step_mps = TRACK_BASE_SPEED_STEP_MPS;
 static volatile CarTelemetry_t g_telemetry;
 
 /*
@@ -105,15 +107,48 @@ static float ClampWheelTarget(float target_mps)
 static float ClampBaseSpeed(float speed_mps)
 {
     return ClampFloat(speed_mps,
-                      TRACK_BASE_SPEED_MIN_MPS,
-                      TRACK_BASE_SPEED_MAX_MPS);
+                      g_line_controller.minimum_base_speed_mps,
+                      g_line_controller.maximum_base_speed_mps);
+}
+
+/** @brief 在停车状态把源循迹的四个速度相关参数切换到指定档位。 */
+static void ApplyTrackingSpeedProfile(CarTrackSpeedProfile_t profile)
+{
+    float maximum_base_speed_mps;
+    float minimum_base_speed_mps;
+    float error_slowdown_mps_per_error;
+    float target_limit_mps;
+
+    if (profile == CAR_TRACK_SPEED_PROFILE_AUX_3_50) {
+        maximum_base_speed_mps = AUX_TRACK_BASE_SPEED_MPS;
+        minimum_base_speed_mps = AUX_TRACK_BASE_SPEED_MIN_MPS;
+        error_slowdown_mps_per_error =
+            AUX_TRACK_ERROR_SLOWDOWN_MPS_PER_ERROR;
+        target_limit_mps = AUX_TRACK_TARGET_LIMIT_MPS;
+        g_base_speed_step_mps = AUX_TRACK_BASE_SPEED_STEP_MPS;
+    } else {
+        maximum_base_speed_mps = TRACK_BASE_SPEED_MPS;
+        minimum_base_speed_mps = TRACK_BASE_SPEED_MIN_MPS;
+        error_slowdown_mps_per_error =
+            TRACK_ERROR_SLOWDOWN_MPS_PER_ERROR;
+        target_limit_mps = TRACK_TARGET_LIMIT_MPS;
+        g_base_speed_step_mps = TRACK_BASE_SPEED_STEP_MPS;
+    }
+
+    LineTrack_SetSpeedProfile(&g_line_controller,
+                              maximum_base_speed_mps,
+                              minimum_base_speed_mps,
+                              error_slowdown_mps_per_error,
+                              target_limit_mps);
+    g_requested_base_speed_mps = maximum_base_speed_mps;
+    g_telemetry.requested_base_speed_mps = maximum_base_speed_mps;
 }
 
 /**
  * @brief 清除两轮速度 PI 并立即写零 PWM。
  *
  * 本函数只清速度 PI 和电机输出，不清 LineTrack 的丢线计时与故障现场。
- * 因而 ISR 检测到 6 s 丢线并停车后，主循环仍能读取完整故障快照。
+ * 因而 ISR 检测到 400 ms 丢线并停车后，主循环仍能读取完整故障快照。
  */
 static void ResetMotionControllers(void)
 {
@@ -191,7 +226,9 @@ static void UpdateCarWatch(const TrackSensorData_t *track,
         g_line_controller.correction_mps;
     g_car_watch.phase_bias_mps = 0.0f;
     g_car_watch.requested_base_speed_mps = g_requested_base_speed_mps;
-    g_car_watch.desired_base_speed_mps = g_line_controller.base_speed_mps;
+    g_car_watch.tracking_output_scale = g_tracking_output_scale;
+    g_car_watch.desired_base_speed_mps =
+        g_line_controller.base_speed_mps * g_tracking_output_scale;
     g_car_watch.dynamic_base_speed_mps = g_dynamic_base_speed_mps;
     g_car_watch.left_target_mps = left_target_mps;
     g_car_watch.right_target_mps = right_target_mps;
@@ -277,6 +314,8 @@ void Car_ControlInit(void)
     g_manual_left_target_mps = 0.0f;
     g_manual_right_target_mps = 0.0f;
     g_requested_base_speed_mps = TRACK_BASE_SPEED_MPS;
+    g_tracking_output_scale = 1.0f;
+    g_base_speed_step_mps = TRACK_BASE_SPEED_STEP_MPS;
 
     /* 静态变量虽会在上电时清零，这里仍逐项初始化，便于软件复位路径审查。 */
     g_telemetry.raw_track_mask = 0U;
@@ -291,6 +330,7 @@ void Car_ControlInit(void)
     g_telemetry.line_lost_ms = 0U;
     g_telemetry.track_error = 0.0f;
     g_telemetry.requested_base_speed_mps = TRACK_BASE_SPEED_MPS;
+    g_telemetry.tracking_output_scale = 1.0f;
     g_telemetry.base_speed_mps = 0.0f;
     g_telemetry.left_target_mps = 0.0f;
     g_telemetry.right_target_mps = 0.0f;
@@ -387,6 +427,31 @@ bool Car_ControlIsArmed(void)
     return g_armed;
 }
 
+void Car_ControlSetTrackingSpeedProfile(CarTrackSpeedProfile_t profile)
+{
+    uint32_t primask = Board_EnterCritical();
+
+    /* 切档前先统一停车，避免旧 PI 或旧循迹历史跨速度档继续输出。 */
+    g_armed = false;
+    g_manual_speed_mode = false;
+    g_manual_left_target_mps = 0.0f;
+    g_manual_right_target_mps = 0.0f;
+    ResetClosedLoop();
+    ApplyTrackingSpeedProfile(profile);
+    g_tracking_output_scale = 1.0f;
+    g_telemetry.tracking_output_scale = 1.0f;
+    Board_ExitCritical(primask);
+}
+
+void Car_ControlSetTrackingOutputScale(float scale)
+{
+    uint32_t primask = Board_EnterCritical();
+
+    g_tracking_output_scale = ClampFloat(scale, 0.0f, 1.0f);
+    g_telemetry.tracking_output_scale = g_tracking_output_scale;
+    Board_ExitCritical(primask);
+}
+
 void Car_ControlSetBaseSpeed(float base_speed_mps)
 {
     uint32_t primask = Board_EnterCritical();
@@ -405,10 +470,10 @@ void Car_ControlSetBaseSpeed(float base_speed_mps)
 void Car_ControlCycleBaseSpeed(void)
 {
     uint32_t primask = Board_EnterCritical();
-    float speed = g_requested_base_speed_mps + TRACK_BASE_SPEED_STEP_MPS;
+    float speed = g_requested_base_speed_mps + g_base_speed_step_mps;
 
-    if (speed > TRACK_BASE_SPEED_MAX_MPS) {
-        speed = TRACK_BASE_SPEED_MIN_MPS;
+    if (speed > g_line_controller.maximum_base_speed_mps) {
+        speed = g_line_controller.minimum_base_speed_mps;
     }
     g_requested_base_speed_mps = speed;
     LineTrack_SetBaseSpeed(&g_line_controller, speed);
@@ -436,6 +501,7 @@ void Car_ControlStep5ms(void)
     float left_target = 0.0f;
     float right_target = 0.0f;
     float steering_error_used = 0.0f;
+    float tracking_output_scale = g_tracking_output_scale;
     int32_t left_pwm = 0;
     int32_t right_pwm = 0;
 
@@ -499,10 +565,13 @@ void Car_ControlStep5ms(void)
                             APP_CONTROL_PERIOD_MS,
                             &left_target,
                             &right_target);
-        g_dynamic_base_speed_mps = g_line_controller.base_speed_mps;
+        left_target *= tracking_output_scale;
+        right_target *= tracking_output_scale;
+        g_dynamic_base_speed_mps =
+            g_line_controller.base_speed_mps * tracking_output_scale;
 
         if (g_line_controller.line_fault) {
-            /* 源工程 6 s 保护到时：锁存比赛故障并保留丢线现场供遥测读取。 */
+            /* 400 ms 丢线保护到时：锁存比赛故障并保留现场供遥测读取。 */
             g_line_fault = true;
             g_armed = false;
             left_target = 0.0f;
@@ -543,6 +612,7 @@ void Car_ControlStep5ms(void)
     g_telemetry.line_lost_ms = (uint16_t)g_line_controller.lost_time_ms;
     g_telemetry.track_error = track.error;
     g_telemetry.requested_base_speed_mps = g_requested_base_speed_mps;
+    g_telemetry.tracking_output_scale = tracking_output_scale;
     g_telemetry.base_speed_mps = g_dynamic_base_speed_mps;
     g_telemetry.left_target_mps = left_target;
     g_telemetry.right_target_mps = right_target;
@@ -592,6 +662,7 @@ void Car_ControlGetTelemetry(CarTelemetry_t *telemetry)
     telemetry->track_error = g_telemetry.track_error;
     telemetry->requested_base_speed_mps =
         g_telemetry.requested_base_speed_mps;
+    telemetry->tracking_output_scale = g_telemetry.tracking_output_scale;
     telemetry->base_speed_mps = g_telemetry.base_speed_mps;
     telemetry->left_target_mps = g_telemetry.left_target_mps;
     telemetry->right_target_mps = g_telemetry.right_target_mps;
@@ -640,6 +711,7 @@ void Car_ControlGetWatchSnapshot(CarControlWatch_t *watch)
     watch->phase_bias_mps = g_car_watch.phase_bias_mps;
     watch->requested_base_speed_mps =
         g_car_watch.requested_base_speed_mps;
+    watch->tracking_output_scale = g_car_watch.tracking_output_scale;
     watch->desired_base_speed_mps = g_car_watch.desired_base_speed_mps;
     watch->dynamic_base_speed_mps = g_car_watch.dynamic_base_speed_mps;
     watch->left_target_mps = g_car_watch.left_target_mps;

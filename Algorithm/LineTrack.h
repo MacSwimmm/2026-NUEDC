@@ -72,6 +72,16 @@ void LineTrack_Init(LineTrack_t *controller,
 /** 清空误差、方向和丢线历史；保留参数与当前请求速度上限。 */
 void LineTrack_Reset(LineTrack_t *controller);
 
+/**
+ * 切换正常有线循迹的速度档，只更新基础速度、误差降速和单轮目标上限。
+ * 转向 P/D、丢线恢复方向和保护时间均保持不变；调用方应在停车状态切换。
+ */
+void LineTrack_SetSpeedProfile(LineTrack_t *controller,
+                               float maximum_base_speed_mps,
+                               float minimum_base_speed_mps,
+                               float error_slowdown_mps_per_error,
+                               float target_limit_mps);
+
 /** 设置允许的基础速度上限；当前有线速度公式范围为 60~100 RPM。 */
 void LineTrack_SetBaseSpeed(LineTrack_t *controller, float base_speed_mps);
 

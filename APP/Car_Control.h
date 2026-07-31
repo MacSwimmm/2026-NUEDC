@@ -4,6 +4,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/** 两套循迹速度档共用同一转向、丢线恢复和轮速 PI 参数。 */
+typedef enum {
+    CAR_TRACK_SPEED_PROFILE_CURRENT = 0, /* PB21：保持 TRACK_FORWARD_SPEED_SCALE */
+    CAR_TRACK_SPEED_PROFILE_AUX_3_50     /* PB0/PB1：固定 3.50 倍速度档 */
+} CarTrackSpeedProfile_t;
+
 /**
  * @file Car_Control.h
  * @brief 整车控制应用的对外接口与只读遥测快照。
@@ -31,6 +37,7 @@ typedef struct {
     uint16_t line_lost_ms;        /* 当前连续丢线时间，单位 ms */
     float track_error;            /* 源权重误差约 -350~+350，负左、正右 */
     float requested_base_speed_mps; /* 比赛层请求的源算法速度上限，单位 m/s */
+    float tracking_output_scale;  /* PB0/PB1 缓启停倍率，0~1；PB21 固定为 1 */
     float base_speed_mps;         /* 原公式按误差计算的 60~100 RPM 基础速度 */
     float left_target_mps;        /* 左轮目标速度，单位 m/s */
     float right_target_mps;       /* 右轮目标速度，单位 m/s */
@@ -76,6 +83,7 @@ typedef struct {
     float steering_correction_mps;   /* 源差速修正；正值使左轮快、向右转 */
     float phase_bias_mps;            /* 兼容旧帧布局，固定为 0 */
     float requested_base_speed_mps;  /* 比赛层请求基础速度 */
+    float tracking_output_scale;     /* 最终左右轮循迹目标的统一缩放倍率 */
     float desired_base_speed_mps;    /* 源公式本周期计算出的基础速度 */
     float dynamic_base_speed_mps;    /* 与 desired 相同；不再经过旧斜坡 */
     float left_target_mps;           /* 左轮最终目标速度 */
@@ -123,6 +131,18 @@ bool Car_ControlSetArmed(bool armed);
 
 /** 返回当前整车使能状态。 */
 bool Car_ControlIsArmed(void);
+
+/**
+ * 停车并选择 PB21 当前速度档或 PB0/PB1 的 3.50 倍速度档。
+ * 只切换正常循迹速度相关参数，不改转向 P/D、恢复或轮速 PI。
+ */
+void Car_ControlSetTrackingSpeedProfile(CarTrackSpeedProfile_t profile);
+
+/**
+ * 将循迹算法算出的左右轮目标统一乘以 0~1 倍率，用于缓启动和缓减速。
+ * PB21 流程始终写 1.0，不改变其现有速度与停车判据。
+ */
+void Car_ControlSetTrackingOutputScale(float scale);
 
 /** 设置循迹基础速度上限；有线速度仍按原误差公式连续计算。 */
 void Car_ControlSetBaseSpeed(float base_speed_mps);

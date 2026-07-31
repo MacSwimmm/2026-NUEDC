@@ -19,6 +19,8 @@ static uint32_t g_stub_millis;
 static bool g_stub_arm_allowed;
 static bool g_stub_armed;
 static float g_stub_base_speed;
+static float g_stub_output_scale;
+static CarTrackSpeedProfile_t g_stub_speed_profile;
 static unsigned int g_failed_checks;
 
 /* TrackSensor.c 通过主机桩读取该字节，bit7~bit0 仍对应 CH1~CH8。 */
@@ -63,6 +65,20 @@ void Car_ControlSetBaseSpeed(float base_speed_mps)
     g_stub_base_speed = base_speed_mps;
 }
 
+void Car_ControlSetTrackingSpeedProfile(CarTrackSpeedProfile_t profile)
+{
+    g_stub_armed = false;
+    g_stub_speed_profile = profile;
+    g_stub_output_scale = 1.0f;
+}
+
+void Car_ControlSetTrackingOutputScale(float scale)
+{
+    if (scale > 1.0f) scale = 1.0f;
+    if (scale < 0.0f) scale = 0.0f;
+    g_stub_output_scale = scale;
+}
+
 void Car_ControlGetTelemetry(CarTelemetry_t *telemetry)
 {
     *telemetry = g_stub_car;
@@ -88,6 +104,8 @@ static void ResetRaceFixture(void)
     g_stub_arm_allowed = true;
     g_stub_armed = false;
     g_stub_base_speed = 0.0f;
+    g_stub_output_scale = 1.0f;
+    g_stub_speed_profile = CAR_TRACK_SPEED_PROFILE_CURRENT;
     Race_ControlInit();
 }
 
@@ -105,11 +123,16 @@ static void TestRaceStartAndFinish(void)
 
     Check(race.state == RACE_STATE_LEAVING_A,
           "PB21 should enter LEAVING_A");
+    Check(race.mode == RACE_MODE_CURRENT_LAP,
+          "PB21 should select the unchanged current lap mode");
     Check(g_race_watch.state == RACE_STATE_LEAVING_A,
           "race Watch mirror should follow start state");
     Check(g_stub_armed, "car should be armed after a valid start");
     Check(AbsFloat(g_stub_base_speed - RACE_CRUISE_SPEED_MPS) < 0.0001f,
           "start should request cruise speed");
+    Check((g_stub_speed_profile == CAR_TRACK_SPEED_PROFILE_CURRENT) &&
+              (AbsFloat(g_stub_output_scale - 1.0f) < 0.0001f),
+          "PB21 should keep the current speed profile at full output");
 
     /* 同一个 control_tick 重复调用不能把一个样本累计成多次。 */
     for (i = 0U; i < 5U; i++) Race_ControlProcess();
@@ -233,6 +256,91 @@ static void TestRaceApproachFaultAndReject(void)
           "start reject counter should increment once");
 }
 
+static void TestPb0SlowLapMode(void)
+{
+    RaceTelemetry_t race;
+    unsigned int i;
+
+    ResetRaceFixture();
+    g_stub_car.junction = 1U;
+    g_stub_car.control_tick_count = 20U;
+    Race_ControlHandleLapKey();
+    Race_ControlGetTelemetry(&race);
+
+    Check((race.mode == RACE_MODE_AUX_LAP) &&
+              (race.state == RACE_STATE_LEAVING_A),
+          "PB0 should start an A-marker lap in the auxiliary mode");
+    Check(g_stub_speed_profile == CAR_TRACK_SPEED_PROFILE_AUX_3_50,
+          "PB0 should select the independent 3.50 speed profile");
+    Check(AbsFloat(g_stub_base_speed - AUX_TRACK_BASE_SPEED_MPS) < 0.0001f,
+          "PB0 should request the 3.50-profile base speed");
+    Check(AbsFloat(g_stub_output_scale) < 0.0001f,
+          "PB0 should arm at zero output for a gentle launch");
+
+    g_stub_millis = 100U + PB0_LAP_LAUNCH_RAMP_MS / 2U;
+    Race_ControlProcess();
+    Race_ControlGetTelemetry(&race);
+    Check((race.approach_active != 0U) &&
+              (AbsFloat(g_stub_output_scale - 0.5f) < 0.001f),
+          "PB0 should ramp the full tracking target over four seconds");
+
+    for (i = 0U; i < RACE_MARKER_CLEAR_SAMPLES; i++) {
+        PushRaceSample(0U, 0U, 0U);
+    }
+    g_stub_millis = 100U + RACE_FINISH_MIN_TIME_MS;
+    for (i = 0U; i < RACE_MARKER_STRONG_CONFIRM_SAMPLES; i++) {
+        PushRaceSample(1U, 1U, 0U);
+    }
+    Race_ControlGetTelemetry(&race);
+    Check((race.state == RACE_STATE_FINISHED) &&
+              (race.result == RACE_RESULT_SUCCESS),
+          "PB0 should finish only after the confirmed second A marker");
+}
+
+static void TestPb1TimedStraightTracking(void)
+{
+    RaceTelemetry_t race;
+
+    ResetRaceFixture();
+    g_stub_car.control_tick_count = 30U;
+    Race_ControlHandleStraightKey();
+    Race_ControlGetTelemetry(&race);
+
+    Check((race.mode == RACE_MODE_AUX_STRAIGHT) &&
+              (race.state == RACE_STATE_RUNNING) && g_stub_armed,
+          "PB1 should start timed straight tracking immediately");
+    Check(g_stub_speed_profile == CAR_TRACK_SPEED_PROFILE_AUX_3_50,
+          "PB1 should select the independent 3.50 speed profile");
+    Check(AbsFloat(g_stub_output_scale) < 0.0001f,
+          "PB1 should also start from zero output");
+
+    g_stub_millis = 100U + PB1_STRAIGHT_LAUNCH_RAMP_MS / 2U;
+    Race_ControlProcess();
+    Check(AbsFloat(g_stub_output_scale - 0.5f) < 0.001f,
+          "PB1 launch ramp should reach half output at its midpoint");
+
+    g_stub_millis = 100U + PB1_STRAIGHT_RUN_MS;
+    Race_ControlProcess();
+    Check(AbsFloat(g_stub_output_scale - 1.0f) < 0.0001f,
+          "PB1 should begin its two-second deceleration from full output");
+
+    g_stub_millis = 100U + PB1_STRAIGHT_RUN_MS +
+                    PB1_STRAIGHT_DECEL_MS / 2U;
+    Race_ControlProcess();
+    Check(AbsFloat(g_stub_output_scale - 0.5f) < 0.001f,
+          "PB1 should reach half output halfway through deceleration");
+
+    g_stub_millis = 100U + PB1_STRAIGHT_TOTAL_MS;
+    Race_ControlProcess();
+    Race_ControlGetTelemetry(&race);
+    Check((race.state == RACE_STATE_FINISHED) &&
+              (race.result == RACE_RESULT_SUCCESS) && !g_stub_armed,
+          "PB1 should disarm after the configured 6+2 seconds");
+    Check((race.final_time_ms == PB1_STRAIGHT_TOTAL_MS) &&
+              (AbsFloat(g_stub_output_scale) < 0.0001f),
+          "PB1 should freeze 8000 ms and finish at zero output");
+}
+
 static void InitLineController(LineTrack_t *controller)
 {
     LineTrack_Init(controller,
@@ -263,8 +371,10 @@ static void TestSourceTrackingFormula(void)
     float expected_base;
     float expected_correction;
 
-    Check(AbsFloat(TRACK_FORWARD_SPEED_SCALE - 5.0f) < 0.0001f,
-          "forward tracking speed scale should be exactly five");
+    Check(AbsFloat(TRACK_FORWARD_SPEED_SCALE - 5.08f) < 0.0001f,
+          "PB21 forward tracking speed scale should remain 5.08");
+    Check(AbsFloat(AUX_TRACK_FORWARD_SPEED_SCALE - 3.50f) < 0.0001f,
+          "PB0/PB1 forward tracking speed scale should be exactly 3.50");
     Check((AbsFloat(TRACK_STEER_KP_MPS -
                     0.035f * TRACK_RPM_TO_MPS) < 0.0001f) &&
               (AbsFloat(TRACK_STEER_ENTRY_KP_MPS -
@@ -348,8 +458,23 @@ static void TestSourceTrackingFormula(void)
                            TRACK_CORRECTION_LIMIT_MPS)) < 0.0001f,
           "unchanged correction should be added to the scaled base speed");
     Check(AbsFloat(TRACK_TARGET_LIMIT_MPS -
-                   175.0f * TRACK_RPM_TO_MPS) < 0.0001f,
-          "wheel target ceiling should follow the five-times speed scale");
+                   35.0f * TRACK_FORWARD_SPEED_SCALE *
+                   TRACK_RPM_TO_MPS) < 0.0001f,
+          "PB21 wheel target ceiling should follow its unchanged 5.08 scale");
+
+    LineTrack_SetSpeedProfile(&controller,
+                              AUX_TRACK_BASE_SPEED_MPS,
+                              AUX_TRACK_BASE_SPEED_MIN_MPS,
+                              AUX_TRACK_ERROR_SLOWDOWN_MPS_PER_ERROR,
+                              AUX_TRACK_TARGET_LIMIT_MPS);
+    LineTrack_Reset(&controller);
+    LineTrack_Calculate(&controller, 0.0f, true, APP_CONTROL_PERIOD_MS,
+                        &left, &right);
+    Check((AbsFloat(left - AUX_TRACK_BASE_SPEED_MPS) < 0.0001f) &&
+              (AbsFloat(right - AUX_TRACK_BASE_SPEED_MPS) < 0.0001f) &&
+              (AbsFloat(controller.target_limit_mps -
+                        AUX_TRACK_TARGET_LIMIT_MPS) < 0.0001f),
+          "runtime profile switching should reproduce the 3.50 speed formulas");
 
     LineTrack_Reset(&controller);
     LineTrack_Calculate(&controller, 25.0f, true, APP_CONTROL_PERIOD_MS,
@@ -540,6 +665,8 @@ int main(void)
     TestRaceStartAndFinish();
     TestStrongMarkerFinish();
     TestRaceApproachFaultAndReject();
+    TestPb0SlowLapMode();
+    TestPb1TimedStraightTracking();
     TestSourceTrackingFormula();
     TestLineRecoverySearch();
     TestReacquireAlignment();
@@ -550,6 +677,6 @@ int main(void)
         return 1;
     }
 
-    printf("[OK] source tracking, recovery, sensor and race checks passed\n");
+    printf("[OK] three-key race, speed-profile, recovery and sensor checks passed\n");
     return 0;
 }

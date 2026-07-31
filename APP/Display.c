@@ -67,7 +67,16 @@ static int32_t SpeedToMillimeters(float speed_mps)
     return speed_mmps;
 }
 
-/** @brief 根据比赛状态和终止原因返回顶行状态文本。 */
+/** @brief 返回 OLED 顶行使用的按键模式与独立速度档。 */
+static const char *GetModeText(RaceMode_t mode)
+{
+    if (mode == RACE_MODE_CURRENT_LAP) return "PB21 LAP 5.08";
+    if (mode == RACE_MODE_AUX_LAP) return "PB0 LAP 3.50";
+    if (mode == RACE_MODE_AUX_STRAIGHT) return "PB1 LINE 3.50";
+    return "READY:21/0/1";
+}
+
+/** @brief 根据比赛状态和终止原因返回状态文本。 */
 static const char *GetStateText(const RaceTelemetry_t *race)
 {
     if (race->state == RACE_STATE_LEAVING_A) return "LEAVE";
@@ -79,38 +88,29 @@ static const char *GetStateText(const RaceTelemetry_t *race)
     return "WAIT";
 }
 
-/** @brief 绘制唯一的比赛页面，所有坐标均按 6×12 字体的 8 像素步距安排。 */
+/** @brief 绘制模式、计时、循迹位图以及左右轮目标/反馈。 */
 static void DrawRacePage(const CarTelemetry_t *car,
                          const RaceTelemetry_t *race)
 {
     uint32_t shown_time = (race->state == RACE_STATE_FINISHED) ?
                           race->final_time_ms : race->elapsed_ms;
+    uint32_t output_percent =
+        (uint32_t)(car->tracking_output_scale * 100.0f + 0.5f);
 
-    /* 第 1 行：流程状态与实时/冻结时间。 */
-    OLED_ShowString(0U, 0U, GetStateText(race));
-    ShowRaceTime(64U, 0U, shown_time);
+    if (output_percent > 100U) output_percent = 100U;
 
-    /*
-     * 第 2 行：显示传感器原始电平，保持用户已确认的“白=1、黑=0”。
-     * A 是内部检测到黑线的探头数量，M 是连续相邻至少 3 路黑的 A 点候选标志。
-     */
-    OLED_ShowString(0U, 13U, "R:");
-    ShowTrackBits(16U, 13U, car->raw_track_mask);
-    OLED_ShowString(88U, 13U, "A");
-    OLED_ShowUnsigned(104U, 13U, car->active_count, 1U);
-    OLED_ShowString(112U, 13U, "M");
-    OLED_ShowUnsigned(120U, 13U, car->marker, 1U);
+    /* 第 1 行明确显示由哪个按键启动，以及该模式使用的速度倍率。 */
+    OLED_ShowString(0U, 0U, GetModeText(race->mode));
 
-    /* 第 3 行：横向误差、实际动态基础速度 B 和比赛层请求速度 Q，单位 mm/s。 */
-    OLED_ShowString(0U, 26U, "E");
-    ShowSignedInteger(8U, 26U, (int32_t)car->track_error, 2U);
-    OLED_ShowString(40U, 26U, "B");
-    OLED_ShowUnsigned(48U, 26U,
-                      (uint32_t)SpeedToMillimeters(car->base_speed_mps), 3U);
-    OLED_ShowString(80U, 26U, "Q");
-    OLED_ShowUnsigned(88U, 26U,
-                      (uint32_t)SpeedToMillimeters(
-                          car->requested_base_speed_mps), 3U);
+    /* 第 2 行：流程状态与实时/冻结时间。 */
+    OLED_ShowString(0U, 13U, GetStateText(race));
+    ShowRaceTime(64U, 13U, shown_time);
+
+    /* 第 3 行：算法实际使用的 CH1~CH8 位图，以及缓启停输出百分比。 */
+    OLED_ShowString(0U, 26U, "TR:");
+    ShowTrackBits(24U, 26U, car->track_mask);
+    OLED_ShowString(96U, 26U, "X");
+    OLED_ShowUnsigned(104U, 26U, output_percent, 3U);
 
     /* 第 4、5 行：左右轮目标 T 与编码器反馈 V，均为带符号 mm/s。 */
     OLED_ShowString(0U, 39U, "LT");

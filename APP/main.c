@@ -11,11 +11,11 @@
 
 /**
  * @file main.c
- * @brief 赛题第 2 项第一版入口：PB21 启动、一圈循迹、A 点停车与时间显示。
+ * @brief 三按键入口：PB21 当前一圈、PB0 缓启动一圈、PB1 定时直线循迹。
  *
  * 主循环只承担低频流程编排：
- * - 取走已经在 5 ms 中断中完成消抖的 PB21 事件；
- * - 推进 A 点离开/返回判断、1 ms 计时和圈末预减速；
+ * - 取走已经在 5 ms 中断中完成消抖的 PB21/PB0/PB1 事件；
+ * - 推进 A 点离开/返回判断、PB0 缓启动与 PB1 的 6 s + 2 s 缓停；
  * - 每 10 ms 把最新只读控制快照压入 UART3 非阻塞发送队列；
  * - 每 50 ms 刷新一次 OLED；
  * - 空闲时执行 WFI 等待下一次中断。
@@ -61,9 +61,19 @@ int main(void)
         uint8_t key_events = Key_TakeEvents();
         uint32_t now = Board_Millis();
 
-        /* 本题只使用板载 PB21；PB0/PB1 保留硬件配置，但第一版不分配比赛动作。 */
-        if ((key_events & KEY_EVENT_USER) != 0U) {
+        uint8_t mode_events = key_events &
+            (KEY_EVENT_USER | KEY_EVENT_KEY1 | KEY_EVENT_KEY2);
+
+        /* 同一消抖窗口出现多键冲突时只停车，不猜测用户想启动哪一种模式。 */
+        if ((mode_events != 0U) &&
+            ((mode_events & (uint8_t)(mode_events - 1U)) != 0U)) {
+            Race_ControlStop();
+        } else if ((mode_events & KEY_EVENT_USER) != 0U) {
             Race_ControlHandleUserKey();
+        } else if ((mode_events & KEY_EVENT_KEY1) != 0U) {
+            Race_ControlHandleLapKey();
+        } else if ((mode_events & KEY_EVENT_KEY2) != 0U) {
+            Race_ControlHandleStraightKey();
         }
 
         /*

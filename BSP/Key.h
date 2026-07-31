@@ -11,9 +11,9 @@
  * 长按只产生一次按下事件，不实现连发。
  */
 
-#define KEY_EVENT_USER   (1U << 0) /* 板载 PB21：比赛启动；运行中再次按下则中止 */
-#define KEY_EVENT_KEY1   (1U << 1) /* 扩展 PB0：第一版未分配比赛动作 */
-#define KEY_EVENT_KEY2   (1U << 2) /* 扩展 PB1：第一版未分配比赛动作 */
+#define KEY_EVENT_USER   (1U << 0) /* PB21：保持当前参数完成一圈；运行中再按中止 */
+#define KEY_EVENT_KEY1   (1U << 1) /* PB0：3.50 倍速度档缓启动完成一圈 */
+#define KEY_EVENT_KEY2   (1U << 2) /* PB1：3.50 倍直线循迹 6 s + 2 s 缓停 */
 
 /** 清空三个按键的稳定状态、候选状态和待处理事件。 */
 void Key_Init(void);

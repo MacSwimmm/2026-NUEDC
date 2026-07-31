@@ -125,9 +125,8 @@ static TelemetryEvent_t DetectEvent(RaceState_t current_state)
         (g_previous_race_state == RACE_STATE_LEAVING_A) ||
         (g_previous_race_state == RACE_STATE_RUNNING);
 
-    if ((current_state == RACE_STATE_LEAVING_A) &&
-        (g_previous_race_state != RACE_STATE_LEAVING_A) &&
-        (g_previous_race_state != RACE_STATE_RUNNING)) {
+    if (((current_state == RACE_STATE_LEAVING_A) ||
+         (current_state == RACE_STATE_RUNNING)) && !previous_active) {
         event = TELEMETRY_EVENT_RACE_STARTED;
     } else if ((current_state == RACE_STATE_FINISHED) && previous_active) {
         event = TELEMETRY_EVENT_RACE_FINISHED;

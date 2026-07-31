@@ -1,15 +1,16 @@
 # G3507-BASE 循迹小车基础工程
 
 本工程面向嘉立创·天猛星 MSPM0G3507，按照 APP / BSP / Algorithm 三层组织。
-当前比赛入口只实现赛题第 2 项：PB21 启动、顺时针循迹一圈、第二次到达 A 点
-横线后停车并冻结时间。循迹控制已完整替换为 GitHub 工程
+当前比赛入口提供三个互斥按键模式：PB21 保持现有参数循迹一圈；PB0 使用独立
+3.50 倍速度档缓启动后循迹一圈；PB1 使用同一 3.50 倍速度档直线循迹，运行
+6 s 后再用 2 s 平滑减速至停止。循迹控制已完整替换为 GitHub 工程
 `argen1234-code/ti_mspm0g3507` 提交 `962cdabf36dae1f842d3a552c347d00d8fb631e8`
-的八路权重、动态基础速度、差速 PD、最后方向原地搜线和 6 s 丢线保护逻辑。
+的八路权重、动态基础速度、差速 PD、最后方向原地搜线和 400 ms 丢线保护逻辑。
 源工程的 FreeRTOS、GPIO、电机驱动和轮速 PID 未复制，继续使用本工程现有硬件层、
 5 ms 裸机调度、双轮增量式速度 PI 与 3200 PWM 软件安全上限。
-当前 `TRACK_FORWARD_SPEED_SCALE=5.0`。直线 Kp 为 0.035，入弯/弯中 Kp 为
-0.100/0.150；有线速度公式和 18 RPM 差速上限均保持上一版，仅新增丢线后立即
-向最后真实转向的反方向恢复。双轮速度 PI 保持 150/300。
+PB21 的 `TRACK_FORWARD_SPEED_SCALE=5.08` 保持不变；PB0/PB1 使用独立的
+`AUX_TRACK_FORWARD_SPEED_SCALE=3.50`。三种模式共用原有直线/入弯/弯中 P、D、
+丢线恢复和双轮速度 PI（150/300），辅助速度档不会反向覆盖 PB21 参数。
 
 > **TB6612 的 STBY 直接接 3.3 V。PA8 在 SysConfig 中没有分配，也没有任何软件控制。**
 >
@@ -43,10 +44,10 @@ G3507-BASE/
 ├─ APP/
 │  ├─ main.c                 裸机任务调度、按键事件和调试状态输出
 │  ├─ Car_Control.c/.h       整车使能、5 ms 控制链和遥测快照
-│  ├─ Race_Control.c/.h      第 2 项四状态流程、A 点识别和计时
+│  ├─ Race_Control.c/.h      三按键模式、A 点识别、缓启停和计时
 │  ├─ Telemetry_Stream.c/.h  UART3 固定帧循迹诊断遥测
 │  ├─ PID_Tuner.c/.h         保留的架空轮速调参协议，比赛入口不初始化
-│  ├─ Display.c/.h           OLED 比赛状态、时间和循迹遥测
+│  ├─ Display.c/.h           OLED 按键模式、速度档、时间和循迹遥测
 │  └─ app_config.h           车辆机械参数、方向、PI 和循迹参数
 ├─ BSP/
 │  ├─ bsp_config.h           PWM、传感器极性和执行器硬件参数
@@ -88,18 +89,22 @@ TIMG0 每 1 ms 产生一次中断，每 5 次执行一轮底盘闭环：
 5. 有线时执行移植后的源公式（下列速度均已由 RPM 换算为 m/s）：
 
 ~~~text
-base       = clamp(100 RPM - abs(error) * 0.10 RPM, 60 RPM, 100 RPM)
+base       = clamp(20*scale RPM - abs(error)*0.02*scale RPM,
+                   12*scale RPM, 20*scale RPM)
 derivative = 当前误差 - 上次误差（启动或重捕获首拍为 0）
 kp         = 0.035（abs(error)<100）
              0.100（100<=abs(error)<200）
              0.150（abs(error)>=200）
-correction = clamp(kp*error + 0.020*derivative, -18 RPM, +18 RPM)
-left       = clamp(base + correction, -175 RPM, +175 RPM)
-right      = clamp(base - correction, -175 RPM, +175 RPM)
+correction = clamp(kp*error + 0.020*derivative, -20 RPM, +20 RPM)
+left       = clamp(base + correction, -35*scale RPM, +35*scale RPM)
+right      = clamp(base - correction, -35*scale RPM, +35*scale RPM)
 ~~~
 
+其中 PB21 的 `scale=5.08`，PB0/PB1 的 `scale=3.50`；转向 P/D 与恢复参数不随
+速度档切换。
+
 6. 误差绝对值超过 25 才更新最后真实转向。全白后立即向其反方向以双轮
-   `±20 RPM` 快速打 50 ms，随后沿同一反方向以 `±10 RPM` 慢速搜线；连续
+   `±24 RPM` 快速打 60 ms，随后沿同一反方向以 `±12 RPM` 慢速搜线；连续
    全白到 400 ms 后清 PI、零 PWM 并报告故障。
 7. 左右目标直接送入现有两套增量式速度 PI，再分别写 TIMA1_C0 和 TIMA1_C1。
 
@@ -195,7 +200,7 @@ OLED 使用参考工程已经验证的软件四线 SPI 参数，不占用硬件 
 | 透明串口模块 | PB4 TX / PB5 RX | UART1，38400 8N1 |
 | 无线 DAP 遥测 | PB12 TX | UART3，115200 8N1，TX-only；PB13 未分配 |
 | 扩展 I2C | PA29 SCL / PA30 SDA | I2C1，400 kHz |
-| 扩展按键 1/2 | PB0 / PB1 | 内部上拉，低电平按下 |
+| 扩展按键 1/2 | PB0 / PB1 | 内部上拉；PB0 一圈缓启动，PB1 直线循迹 6 s + 2 s 缓停 |
 | 有源蜂鸣器 | PB23 | 默认关闭 |
 | 通用使能 | PA1 | 默认低电平，暂未提供 BSP 接口 |
 | 板载用户按键 | PB21 | 内部上拉，低电平按下 |
@@ -204,7 +209,7 @@ OLED 使用参考工程已经验证的软件四线 SPI 参数，不占用硬件 
 
 `APP/PID_Tuner.c` 和电脑端工具继续保留，但当前比赛 `main.c` 不调用
 `PIDTuner_Init()`/`PIDTuner_Process()`，UART0 调参协议不会上电运行，也不会与
-PB21 比赛流程争用控制权。UART3 已改为无线 DAP 专用只发送遥测口，不接收任何
+三按键运行模式争用控制权。UART3 已改为无线 DAP 专用只发送遥测口，不接收任何
 电脑命令；UART1 仍只保留基础透明发送接口。
 I2C1 只完成 SysConfig 外设和引脚配置，具体扩展器件协议应在后续 BSP 中按题目添加。
 
@@ -226,19 +231,21 @@ W25Q128 信号，也不作为普通扩展 GPIO 使用。
 
 ## 5. 当前 main.c、比赛流程和 OLED
 
-上电后底盘保持零 PWM。把小车朝 B 点放在 A 点，循迹探头可以正压在 A 点黑色
-横线上；按一次板载 PB21 后开始计时并启动：
+上电后底盘保持零 PWM。三个低有效按键均经过 20 ms 消抖，同一窗口多键冲突时
+只执行停车，不自动选择模式：
 
-1. `LEAVING_A`：横线连续消失 3 个 5 ms 样本后，才开放终点判断。
-2. `RUNNING`：循迹算法以最高 100 RPM（约 0.3403 m/s）运行，并按原公式
-   自动降速；配置下限为 60 RPM。16.5 s 的接近状态仍保留，但不切换速度档位。
-3. 再次检测到连续相邻至少 4 路黑色并确认 6 拍（30 ms）后，立即零 PWM
-   并冻结总时间；3 路弱标志只作诊断，不会完成比赛。
-4. 运行中再次按 PB21 可人工中止并回到等待；持续丢线则显示 `LOST` 并停车。
+1. **PB21**：保持原 `5.08` 倍速度档和原状态机。`LEAVING_A` 连续 3 拍离开
+   起点横线后进入 `RUNNING`；超过 8 s 后，第二次强 A 点连续确认 6 拍即停车。
+2. **PB0**：使用 `3.50` 倍速度档，前 4 s 将左右轮完整循迹目标从 0 线性放大
+   到 100%，随后按与 PB21 相同的 A 点条件完成一圈。
+3. **PB1**：同样使用 `3.50` 倍速度档并继续读取八路误差进行循迹，不是开环
+   同速直走。前 1.5 s 缓启动；第 6 s 起将完整左右轮目标线性缩小，至第 8 s
+   归零、清 PI、写零 PWM，并冻结 `8.000 s`。
+4. 任一模式运行中再按任一模式键都先停车；持续丢线则显示 `LOST` 并停车。
 
-OLED 顶行显示状态和 `SSS.mmm` 时间；第二行保持用户已确认的原始电平显示
-（白色=1、黑色=0），其余行显示黑色探头数、横线标志、误差、动态基础速度以及
-左右轮目标/反馈速度。PB0、PB1 第一版不分配比赛动作。
+OLED 顶行显示 `PB21 LAP 5.08`、`PB0 LAP 3.50` 或 `PB1 LINE 3.50`；第二行
+显示状态和 `SSS.mmm` 时间；第三行显示算法实际使用的 CH1~CH8 位图与缓启停
+输出百分比；末两行保留左右轮目标/反馈速度。
 
 ### 5.1 Keil Watch 推荐变量
 
@@ -277,20 +284,26 @@ OLED 顶行显示状态和 `SSS.mmm` 时间；第二行保持用户已确认的�
 | SPEED_PI_KP/KI | 150 / 300 | 当前两轮速度 PI 初值，未随循迹移植替换 |
 | SPEED_PI_OUTPUT_LIMIT_COUNTS | 3200 | 速度闭环 PWM 硬限幅，Watch 只能调低不能突破 |
 | WHEEL_SPEED_TARGET_LIMIT_MPS | 0.45 | SetSpeed_Left/Right 目标速度绝对值上限 |
-| TRACK_FORWARD_SPEED_SCALE | 5.0 | 小误差直线基础速度和目标速度上限倍率 |
-| TRACK_BASE_SPEED/MAX/MIN_MPS | 0.340339 / 0.340339 / 0.204204 | 100/100/60 RPM |
-| TRACK_ERROR_SLOWDOWN_MPS_PER_ERROR | 0.000340339 | 每误差单位降低 0.10 RPM |
+| TRACK_FORWARD_SPEED_SCALE | 5.08 | PB21 小误差基础速度和目标速度上限倍率 |
+| AUX_TRACK_FORWARD_SPEED_SCALE | 3.50 | PB0/PB1 独立循迹速度倍率 |
+| TRACK_BASE_SPEED/MAX/MIN_MPS | 0.345785 / 0.345785 / 0.207471 | PB21 的 101.6/101.6/60.96 RPM |
+| AUX_TRACK_BASE_SPEED/MIN_MPS | 0.238237 / 0.142942 | PB0/PB1 的 70/42 RPM |
+| TRACK_ERROR_SLOWDOWN_MPS_PER_ERROR | 0.000345785 | PB21 每误差单位降速系数 |
+| AUX_TRACK_ERROR_SLOWDOWN_MPS_PER_ERROR | 0.000238237 | PB0/PB1 每误差单位降速系数 |
 | TRACK_STEER_KP_MPS | 0.000119119 | 直线小误差 Kp=0.035，保持上一版 |
 | TRACK_STEER_ENTRY_KP_MPS | 0.000340339 | 入弯 Kp=0.100，abs(error)>=100 |
 | TRACK_STEER_CURVE_KP_MPS | 0.000510509 | 弯中 Kp=0.150，abs(error)>=200 |
 | TRACK_STEER_KD_MPS | 0.000068068 | 5 ms 离散 D=0.020，保持上一版 |
-| TRACK_CORRECTION_LIMIT_MPS | 0.061261 | 全程保持上一版差速修正上限 18 RPM |
-| TRACK_TARGET_LIMIT_MPS | 0.595594 | 单轮目标上限 175 RPM |
-| TRACK_RECOVERY_KICK_SPEED_MPS | 0.068068 | 丢线前 50 ms 反向快速打 20 RPM |
-| TRACK_RECOVERY_SPEED_MPS | 0.034034 | 后续反向慢速搜线 10 RPM |
+| TRACK_CORRECTION_LIMIT_MPS | 0.068068 | 三种模式共用差速修正上限 20 RPM |
+| TRACK_TARGET_LIMIT_MPS | 0.605123 | PB21 单轮目标上限 177.8 RPM |
+| AUX_TRACK_TARGET_LIMIT_MPS | 0.416916 | PB0/PB1 单轮目标上限 122.5 RPM |
+| TRACK_RECOVERY_KICK_SPEED_MPS | 0.081681 | 丢线前 60 ms 反向快速打 24 RPM |
+| TRACK_RECOVERY_SPEED_MPS | 0.040841 | 后续反向慢速搜线 12 RPM |
 | TRACK_LOST_PROTECT_MS | 400 | 连续丢线故障停车时间 |
 | TRACK_DIRECTION_DEADBAND | 25 | 更新最后转向所需误差绝对值 |
-| RACE_CRUISE/APPROACH_SPEED_MPS | 0.340339 / 0.340339 | 小误差直线使用 100 RPM 上限 |
+| RACE_CRUISE/APPROACH_SPEED_MPS | 0.345785 / 0.345785 | PB21 现有请求保持不变 |
+| PB0_LAP_LAUNCH_RAMP_MS | 4000 | PB0 从零目标缓慢放大至完整 3.50 档 |
+| PB1_STRAIGHT_RUN/DECEL_MS | 6000 / 2000 | PB1 第 6 s 开始缓停，第 8 s 停止 |
 
 硬件与模块参数集中修改 BSP/bsp_config.h：
 
@@ -319,7 +332,7 @@ OLED 顶行显示状态和 `SSS.mmm` 时间；第二行保持用户已确认的�
 PowerShell：
 
 ~~~powershell
-cd C:\Users\han_z\Desktop\TEST_TI\G3507-BASE
+cd C:\Users\han_z\Desktop\TEST_TI\G3507-BASE-OFFICIAL
 .\tools\run_sysconfig_keil.bat "$PWD" G3507-BASE.syscfg
 .\tools\run_control_logic_tests.ps1
 .\tools\run_telemetry_tests.ps1
@@ -361,8 +374,8 @@ cd C:\Users\han_z\Desktop\TEST_TI\G3507-BASE
 
 界面持续显示八路探头、比赛状态、原始/源 PD 误差、离散微分、P/D 项、差速修正、
 动态基础速度、左右轮目标/反馈、编码器、PWM、丢线状态和无线链路统计，并绘制
-最近 10 秒曲线。默认勾选“随比赛自动记录”：检测到 PB21 启动后清空旧数据并
-开始记录；正常完成、持续丢线或再次按 PB21 人工停止时结束记录但保留全部样本。
+最近 10 秒曲线。默认勾选“随比赛自动记录”：检测到任一按键模式启动后清空旧
+数据并开始记录；正常完成、持续丢线或再次按模式键人工停止时结束记录并保留样本。
 点击“导出 CSV”后默认保存到 `Documents\G3507_Telemetry`，编码为 UTF-8 with BOM，
 可直接用 Excel 打开或把文件交给 Codex 分析。
 
@@ -374,14 +387,14 @@ CRC16-CCITT-FALSE。CSV 同时记录电脑时间、板端毫秒、控制周期�
 
 本节工具仅作为后续底盘标定入口保留。当前比赛 `main.c` 没有初始化调参协议；
 需要重新启用时，应在架空车轮的专用调试入口中显式调用 PID Tuner，而不要与
-PB21 一圈比赛流程同时运行。
+PB21/PB0/PB1 任一运行模式同时运行。
 
 电脑端工具为 `tools/pid_tuner.py`。它复用板上的 UART0/CH340，实时绘制左右轮
 目标速度、编码器反馈和 PI 输出 PWM，并把全部遥测保存到
 `tools/pid_logs/pid_时间.csv`。启动方式：
 
 ~~~powershell
-cd C:\Users\han_z\Desktop\TEST_TI\G3507-BASE
+cd C:\Users\han_z\Desktop\TEST_TI\G3507-BASE-OFFICIAL
 .\tools\run_pid_tuner.cmd
 # 也可以直接指定端口
 .\tools\run_pid_tuner.cmd --port COM6

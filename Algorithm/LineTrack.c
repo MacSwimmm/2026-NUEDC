@@ -29,16 +29,11 @@ void LineTrack_Init(LineTrack_t *controller,
                     uint32_t lost_protect_ms,
                     float direction_deadband)
 {
-    if (minimum_base_speed_mps > maximum_base_speed_mps) {
-        float temporary = minimum_base_speed_mps;
-        minimum_base_speed_mps = maximum_base_speed_mps;
-        maximum_base_speed_mps = temporary;
-    }
-
-    controller->maximum_base_speed_mps = maximum_base_speed_mps;
-    controller->minimum_base_speed_mps = minimum_base_speed_mps;
-    controller->error_slowdown_mps_per_error =
-        AbsFloat(error_slowdown_mps_per_error);
+    LineTrack_SetSpeedProfile(controller,
+                              maximum_base_speed_mps,
+                              minimum_base_speed_mps,
+                              error_slowdown_mps_per_error,
+                              target_limit_mps);
     controller->kp = kp;
     controller->entry_kp = entry_kp;
     controller->curve_kp = curve_kp;
@@ -51,14 +46,12 @@ void LineTrack_Init(LineTrack_t *controller,
     }
     controller->kd = kd;
     controller->correction_limit_mps = AbsFloat(correction_limit_mps);
-    controller->target_limit_mps = AbsFloat(target_limit_mps);
     controller->recovery_kick_speed_mps =
         AbsFloat(recovery_kick_speed_mps);
     controller->recovery_speed_mps = AbsFloat(recovery_speed_mps);
     controller->recovery_kick_ms = recovery_kick_ms;
     controller->lost_protect_ms = lost_protect_ms;
     controller->direction_deadband = AbsFloat(direction_deadband);
-    controller->requested_base_speed_mps = maximum_base_speed_mps;
     LineTrack_Reset(controller);
 }
 
@@ -79,6 +72,27 @@ void LineTrack_Reset(LineTrack_t *controller)
     controller->recovering = false;
     controller->running = false;
     controller->line_fault = false;
+}
+
+void LineTrack_SetSpeedProfile(LineTrack_t *controller,
+                               float maximum_base_speed_mps,
+                               float minimum_base_speed_mps,
+                               float error_slowdown_mps_per_error,
+                               float target_limit_mps)
+{
+    if (minimum_base_speed_mps > maximum_base_speed_mps) {
+        float temporary = minimum_base_speed_mps;
+        minimum_base_speed_mps = maximum_base_speed_mps;
+        maximum_base_speed_mps = temporary;
+    }
+
+    controller->maximum_base_speed_mps = AbsFloat(maximum_base_speed_mps);
+    controller->minimum_base_speed_mps = AbsFloat(minimum_base_speed_mps);
+    controller->error_slowdown_mps_per_error =
+        AbsFloat(error_slowdown_mps_per_error);
+    controller->target_limit_mps = AbsFloat(target_limit_mps);
+    controller->requested_base_speed_mps =
+        controller->maximum_base_speed_mps;
 }
 
 void LineTrack_SetBaseSpeed(LineTrack_t *controller, float base_speed_mps)

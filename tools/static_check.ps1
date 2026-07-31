@@ -133,6 +133,10 @@ $appConfig = Get-Content -LiteralPath (Join-Path $projectRoot 'APP\app_config.h'
 $carSource = Get-Content -LiteralPath (Join-Path $projectRoot 'APP\Car_Control.c') -Raw
 $lineTrackSource = Get-Content -LiteralPath (Join-Path $projectRoot 'Algorithm\LineTrack.c') -Raw
 $raceSource = Get-Content -LiteralPath (Join-Path $projectRoot 'APP\Race_Control.c') -Raw
+$raceHeader = Get-Content -LiteralPath (Join-Path $projectRoot 'APP\Race_Control.h') -Raw
+$carHeader = Get-Content -LiteralPath (Join-Path $projectRoot 'APP\Car_Control.h') -Raw
+$keyHeader = Get-Content -LiteralPath (Join-Path $projectRoot 'BSP\Key.h') -Raw
+$displaySource = Get-Content -LiteralPath (Join-Path $projectRoot 'APP\Display.c') -Raw
 $telemetrySource = Get-Content -LiteralPath (Join-Path $projectRoot 'APP\Telemetry_Stream.c') -Raw
 $serialSource = Get-Content -LiteralPath (Join-Path $projectRoot 'BSP\Serial.c') -Raw
 $mainSource = Get-Content -LiteralPath (Join-Path $projectRoot 'APP\main.c') -Raw
@@ -199,6 +203,9 @@ if (($mainSource -notmatch 'Telemetry_StreamInit\s*\(\s*\)\s*;') -or
     throw '比赛 main.c 未初始化或调度只读 UART3 遥测。'
 }
 foreach ($raceFragment in @(
+    'RACE_MODE_CURRENT_LAP',
+    'RACE_MODE_AUX_LAP',
+    'RACE_MODE_AUX_STRAIGHT',
     'RACE_STATE_WAITING',
     'RACE_STATE_LEAVING_A',
     'RACE_STATE_RUNNING',
@@ -207,11 +214,41 @@ foreach ($raceFragment in @(
     'RACE_MARKER_STRONG_CONFIRM_SAMPLES',
     'RACE_FINISH_MIN_TIME_MS',
     'RACE_APPROACH_START_MS',
+    'PB0_LAP_LAUNCH_RAMP_MS',
+    'PB1_STRAIGHT_RUN_MS',
+    'PB1_STRAIGHT_DECEL_MS',
+    'Race_ControlHandleLapKey',
+    'Race_ControlHandleStraightKey',
+    'SelectStraightScale',
     'g_race_watch',
     'UpdateRaceWatch'
 )) {
     if (-not $raceSource.Contains($raceFragment)) {
         throw "比赛流程缺少关键状态或门限：$raceFragment"
+    }
+}
+foreach ($keyModeFragment in @(
+    'KEY_EVENT_USER',
+    'KEY_EVENT_KEY1',
+    'KEY_EVENT_KEY2',
+    'Race_ControlHandleUserKey',
+    'Race_ControlHandleLapKey',
+    'Race_ControlHandleStraightKey',
+    'Race_ControlStop'
+)) {
+    if ((-not $mainSource.Contains($keyModeFragment)) -and
+        (-not $keyHeader.Contains($keyModeFragment))) {
+        throw "三按键入口缺少关键实现：$keyModeFragment"
+    }
+}
+foreach ($displayFragment in @(
+    'PB21 LAP 5.08',
+    'PB0 LAP 3.50',
+    'PB1 LINE 3.50',
+    'tracking_output_scale'
+)) {
+    if (-not $displaySource.Contains($displayFragment)) {
+        throw "OLED 模式页缺少关键显示：$displayFragment"
     }
 }
 $trackingControlSource = $carSource + "`n" + $lineTrackSource
@@ -236,8 +273,11 @@ foreach ($sourceTrackingParameter in @(
         throw "缺少移植后的源循迹参数：$sourceTrackingParameter"
     }
 }
-if ($appConfig -notmatch '#define\s+TRACK_FORWARD_SPEED_SCALE\s+5\.0f') {
-    throw '当前正常行驶速度倍率必须保持为 5.0。'
+if ($appConfig -notmatch '#define\s+TRACK_FORWARD_SPEED_SCALE\s+5\.08f') {
+    throw 'PB21 当前正常行驶速度倍率必须保持为 5.08。'
+}
+if ($appConfig -notmatch '#define\s+AUX_TRACK_FORWARD_SPEED_SCALE\s+3\.50f') {
+    throw 'PB0/PB1 独立循迹速度倍率必须保持为 3.50。'
 }
 if (($appConfig -notmatch '#define\s+SPEED_PI_KP\s+150\.0f') -or
     ($appConfig -notmatch '#define\s+SPEED_PI_KI\s+300\.0f')) {
@@ -262,6 +302,10 @@ foreach ($unchangedTrackingParameter in @(
 }
 foreach ($controlFragment in @(
     'LineTrack_Calculate',
+    'LineTrack_SetSpeedProfile',
+    'Car_ControlSetTrackingSpeedProfile',
+    'Car_ControlSetTrackingOutputScale',
+    'g_tracking_output_scale',
     'error_slowdown_mps_per_error',
     'line_was_visible',
     'last_direction',
@@ -277,6 +321,15 @@ foreach ($controlFragment in @(
 )) {
     if (-not $trackingControlSource.Contains($controlFragment)) {
         throw "源循迹移植缺少关键实现：$controlFragment"
+    }
+}
+foreach ($profileApiFragment in @(
+    'CAR_TRACK_SPEED_PROFILE_CURRENT',
+    'CAR_TRACK_SPEED_PROFILE_AUX_3_50',
+    'tracking_output_scale'
+)) {
+    if (-not $carHeader.Contains($profileApiFragment)) {
+        throw "整车控制接口缺少独立速度档或缓启停字段：$profileApiFragment"
     }
 }
 if (($lineTrackSource -notmatch
