@@ -17,11 +17,14 @@
 /* 辅助板数字输出为白色=1、黑色=0，八路均按低电平检测到黑线。 */
 #define TRACK_ACTIVE_LOW_MASK              0xFFU
 #define TRACK_READY_SAMPLES                4U
-
-/* TIMG8 为 1 us/计数，舵机安全脉宽范围 1000~2000 us。 */
-#define SERVO_MIN_PULSE_US                 1000U
-#define SERVO_NEUTRAL_PULSE_US             1500U
-#define SERVO_MAX_PULSE_US                 2000U
+/*
+ * A 点横线宽度判定使用“连续相邻黑线数”，不能只统计总黑色通道数：
+ * - 连续 4 路及以上是强标志，对应车辆较居中地通过 A 点；
+ * - 连续 3 路是弱标志，用于容忍高速回到 A 点时车辆存在横向偏差。
+ * 两类标志使用不同的连续确认时间，最终停车仍由比赛层结合最低运行时间判定。
+ */
+#define TRACK_MARKER_WEAK_MIN_CONTIGUOUS   3U
+#define TRACK_MARKER_STRONG_MIN_CONTIGUOUS 4U
 
 /* 超过该时间没有收到有效 JY901S 帧，就把本地快照标记为离线。 */
 #define JY901S_OFFLINE_TIMEOUT_MS           500U

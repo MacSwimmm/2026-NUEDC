@@ -10,6 +10,8 @@ keil/*.lst
 
 # Editor and temporary files
 .vscode/
+tools/__pycache__/
+tools/pid_logs/
 *.bak
 *.tmp
 *.orig

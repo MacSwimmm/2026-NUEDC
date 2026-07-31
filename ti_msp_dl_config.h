@@ -95,54 +95,6 @@ extern "C" {
 #define GPIO_PWM_0_C1_IOMUX_FUNC                     IOMUX_PINCM16_PF_TIMA1_CCP1
 #define GPIO_PWM_0_C1_IDX                                    DL_TIMER_CC_1_INDEX
 
-/* Defines for SERVO_PWM */
-#define SERVO_PWM_INST                                                     TIMG8
-#define SERVO_PWM_INST_IRQHandler                               TIMG8_IRQHandler
-#define SERVO_PWM_INST_INT_IRQN                                 (TIMG8_INT_IRQn)
-#define SERVO_PWM_INST_CLK_FREQ                                          1000000
-/* GPIO defines for channel 0 */
-#define GPIO_SERVO_PWM_C0_PORT                                             GPIOB
-#define GPIO_SERVO_PWM_C0_PIN                                     DL_GPIO_PIN_10
-#define GPIO_SERVO_PWM_C0_IOMUX                                  (IOMUX_PINCM27)
-#define GPIO_SERVO_PWM_C0_IOMUX_FUNC                 IOMUX_PINCM27_PF_TIMG8_CCP0
-#define GPIO_SERVO_PWM_C0_IDX                                DL_TIMER_CC_0_INDEX
-/* GPIO defines for channel 1 */
-#define GPIO_SERVO_PWM_C1_PORT                                             GPIOB
-#define GPIO_SERVO_PWM_C1_PIN                                     DL_GPIO_PIN_11
-#define GPIO_SERVO_PWM_C1_IOMUX                                  (IOMUX_PINCM28)
-#define GPIO_SERVO_PWM_C1_IOMUX_FUNC                 IOMUX_PINCM28_PF_TIMG8_CCP1
-#define GPIO_SERVO_PWM_C1_IDX                                DL_TIMER_CC_1_INDEX
-
-/* Defines for MAGNET_PWM */
-#define MAGNET_PWM_INST                                                    TIMG7
-#define MAGNET_PWM_INST_IRQHandler                              TIMG7_IRQHandler
-#define MAGNET_PWM_INST_INT_IRQN                                (TIMG7_INT_IRQn)
-#define MAGNET_PWM_INST_CLK_FREQ                                        80000000
-/* GPIO defines for channel 1 */
-#define GPIO_MAGNET_PWM_C1_PORT                                            GPIOA
-#define GPIO_MAGNET_PWM_C1_PIN                                     DL_GPIO_PIN_2
-#define GPIO_MAGNET_PWM_C1_IOMUX                                  (IOMUX_PINCM7)
-#define GPIO_MAGNET_PWM_C1_IOMUX_FUNC                 IOMUX_PINCM7_PF_TIMG7_CCP1
-#define GPIO_MAGNET_PWM_C1_IDX                               DL_TIMER_CC_1_INDEX
-
-/* Defines for MECHANISM_PWM */
-#define MECHANISM_PWM_INST                                                 TIMG6
-#define MECHANISM_PWM_INST_IRQHandler                           TIMG6_IRQHandler
-#define MECHANISM_PWM_INST_INT_IRQN                             (TIMG6_INT_IRQn)
-#define MECHANISM_PWM_INST_CLK_FREQ                                     80000000
-/* GPIO defines for channel 0 */
-#define GPIO_MECHANISM_PWM_C0_PORT                                         GPIOB
-#define GPIO_MECHANISM_PWM_C0_PIN                                 DL_GPIO_PIN_26
-#define GPIO_MECHANISM_PWM_C0_IOMUX                              (IOMUX_PINCM57)
-#define GPIO_MECHANISM_PWM_C0_IOMUX_FUNC             IOMUX_PINCM57_PF_TIMG6_CCP0
-#define GPIO_MECHANISM_PWM_C0_IDX                            DL_TIMER_CC_0_INDEX
-/* GPIO defines for channel 1 */
-#define GPIO_MECHANISM_PWM_C1_PORT                                         GPIOB
-#define GPIO_MECHANISM_PWM_C1_PIN                                 DL_GPIO_PIN_27
-#define GPIO_MECHANISM_PWM_C1_IOMUX                              (IOMUX_PINCM58)
-#define GPIO_MECHANISM_PWM_C1_IOMUX_FUNC             IOMUX_PINCM58_PF_TIMG6_CCP1
-#define GPIO_MECHANISM_PWM_C1_IDX                            DL_TIMER_CC_1_INDEX
-
 
 
 /* Defines for SYSTEM_TICK */
@@ -214,21 +166,17 @@ extern "C" {
 #define ZIGBEE_UART_BAUD_RATE                                            (38400)
 #define ZIGBEE_UART_IBRD_40_MHZ_38400_BAUD                                  (65)
 #define ZIGBEE_UART_FBRD_40_MHZ_38400_BAUD                                   (7)
-/* Defines for CAMERA_UART */
-#define CAMERA_UART_INST                                                   UART3
-#define CAMERA_UART_INST_IRQHandler                             UART3_IRQHandler
-#define CAMERA_UART_INST_INT_IRQN                                 UART3_INT_IRQn
-#define GPIO_CAMERA_UART_RX_PORT                                           GPIOB
-#define GPIO_CAMERA_UART_TX_PORT                                           GPIOB
-#define GPIO_CAMERA_UART_RX_PIN                                   DL_GPIO_PIN_13
-#define GPIO_CAMERA_UART_TX_PIN                                   DL_GPIO_PIN_12
-#define GPIO_CAMERA_UART_IOMUX_RX                                (IOMUX_PINCM30)
-#define GPIO_CAMERA_UART_IOMUX_TX                                (IOMUX_PINCM29)
-#define GPIO_CAMERA_UART_IOMUX_RX_FUNC                 IOMUX_PINCM30_PF_UART3_RX
-#define GPIO_CAMERA_UART_IOMUX_TX_FUNC                 IOMUX_PINCM29_PF_UART3_TX
-#define CAMERA_UART_BAUD_RATE                                           (115200)
-#define CAMERA_UART_IBRD_80_MHZ_115200_BAUD                                 (43)
-#define CAMERA_UART_FBRD_80_MHZ_115200_BAUD                                 (26)
+/* Defines for TELEMETRY_UART */
+#define TELEMETRY_UART_INST                                                UART3
+#define TELEMETRY_UART_INST_IRQHandler                          UART3_IRQHandler
+#define TELEMETRY_UART_INST_INT_IRQN                              UART3_INT_IRQn
+#define GPIO_TELEMETRY_UART_TX_PORT                                        GPIOB
+#define GPIO_TELEMETRY_UART_TX_PIN                                DL_GPIO_PIN_12
+#define GPIO_TELEMETRY_UART_IOMUX_TX                             (IOMUX_PINCM29)
+#define GPIO_TELEMETRY_UART_IOMUX_TX_FUNC               IOMUX_PINCM29_PF_UART3_TX
+#define TELEMETRY_UART_BAUD_RATE                                        (115200)
+#define TELEMETRY_UART_IBRD_80_MHZ_115200_BAUD                              (43)
+#define TELEMETRY_UART_FBRD_80_MHZ_115200_BAUD                              (26)
 
 
 
@@ -383,15 +331,12 @@ void SYSCFG_DL_initPower(void);
 void SYSCFG_DL_GPIO_init(void);
 void SYSCFG_DL_SYSCTL_init(void);
 void SYSCFG_DL_PWM_0_init(void);
-void SYSCFG_DL_SERVO_PWM_init(void);
-void SYSCFG_DL_MAGNET_PWM_init(void);
-void SYSCFG_DL_MECHANISM_PWM_init(void);
 void SYSCFG_DL_SYSTEM_TICK_init(void);
 void SYSCFG_DL_EXPANSION_I2C_init(void);
 void SYSCFG_DL_DEBUG_UART_init(void);
 void SYSCFG_DL_JY901S_UART_init(void);
 void SYSCFG_DL_ZIGBEE_UART_init(void);
-void SYSCFG_DL_CAMERA_UART_init(void);
+void SYSCFG_DL_TELEMETRY_UART_init(void);
 
 void SYSCFG_DL_SYSTICK_init(void);
 

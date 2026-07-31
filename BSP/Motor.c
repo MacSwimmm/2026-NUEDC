@@ -3,9 +3,15 @@
 #include "bsp_config.h"
 #include "ti_msp_dl_config.h"
 
-/* 保存限幅后的实际命令，供遥测显示；它们不代表电机一定达到对应转速。 */
-static volatile int32_t g_left_pwm = 0;
-static volatile int32_t g_right_pwm = 0;
+
+//PWM最大输出为1000
+
+
+
+/* 非 static 全局镜像，既保留 Watch 可写命令，也暴露实际驱动输出。 */
+volatile MotorWatch_t g_motor_watch = {
+    0U, 0, 0, 0, 0
+};
 
 static int32_t ClampPWM(int32_t pwm)
 {
@@ -52,12 +58,14 @@ void Motor_Init(void)
 void Motor_SetPWM(int32_t left_pwm, int32_t right_pwm)
 {
     /* 左右命令分别限幅并保存，两个 TIMA1 比较通道随后独立更新。 */
-    g_left_pwm = ClampPWM(left_pwm);
-    g_right_pwm = ClampPWM(right_pwm);
+    g_motor_watch.left_applied_pwm = ClampPWM(left_pwm);
+    g_motor_watch.right_applied_pwm = ClampPWM(right_pwm);
 
-    ApplyOneMotor(g_left_pwm, AIN_PORT, AIN_AIN1_PIN, AIN_AIN2_PIN,
+    ApplyOneMotor(g_motor_watch.left_applied_pwm,
+                  AIN_PORT, AIN_AIN1_PIN, AIN_AIN2_PIN,
                   GPIO_PWM_0_C0_IDX);
-    ApplyOneMotor(g_right_pwm, BIN_PORT, BIN_BIN1_PIN, BIN_BIN2_PIN,
+    ApplyOneMotor(g_motor_watch.right_applied_pwm,
+                  BIN_PORT, BIN_BIN1_PIN, BIN_BIN2_PIN,
                   GPIO_PWM_0_C1_IDX);
 }
 
@@ -68,10 +76,10 @@ void Motor_Stop(void)
 
 int32_t Motor_GetLeftPWM(void)
 {
-    return g_left_pwm;
+    return g_motor_watch.left_applied_pwm;
 }
 
 int32_t Motor_GetRightPWM(void)
 {
-    return g_right_pwm;
+    return g_motor_watch.right_applied_pwm;
 }

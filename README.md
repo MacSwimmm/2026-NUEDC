@@ -1,8 +1,15 @@
 # G3507-BASE 循迹小车基础工程
 
-本工程面向嘉立创·天猛星 MSPM0G3507，按照 APP / BSP / Algorithm 三层组织，
-只保留循迹小车基础闭环、参数显示和必要扩展接口。工程采用裸机定时调度，
-没有弯道、路口等复杂赛道状态机。
+本工程面向嘉立创·天猛星 MSPM0G3507，按照 APP / BSP / Algorithm 三层组织。
+当前比赛入口只实现赛题第 2 项：PB21 启动、顺时针循迹一圈、第二次到达 A 点
+横线后停车并冻结时间。循迹控制已完整替换为 GitHub 工程
+`argen1234-code/ti_mspm0g3507` 提交 `962cdabf36dae1f842d3a552c347d00d8fb631e8`
+的八路权重、动态基础速度、差速 PD、最后方向原地搜线和 6 s 丢线保护逻辑。
+源工程的 FreeRTOS、GPIO、电机驱动和轮速 PID 未复制，继续使用本工程现有硬件层、
+5 ms 裸机调度、双轮增量式速度 PI 与 3200 PWM 软件安全上限。
+当前 `TRACK_FORWARD_SPEED_SCALE=5.0`。直线 Kp 为 0.035，入弯/弯中 Kp 为
+0.100/0.150；有线速度公式和 18 RPM 差速上限均保持上一版，仅新增丢线后立即
+向最后真实转向的反方向恢复。双轮速度 PI 保持 150/300。
 
 > **TB6612 的 STBY 直接接 3.3 V。PA8 在 SysConfig 中没有分配，也没有任何软件控制。**
 >
@@ -36,7 +43,10 @@ G3507-BASE/
 ├─ APP/
 │  ├─ main.c                 裸机任务调度、按键事件和调试状态输出
 │  ├─ Car_Control.c/.h       整车使能、5 ms 控制链和遥测快照
-│  ├─ Display.c/.h           OLED 三页参数显示
+│  ├─ Race_Control.c/.h      第 2 项四状态流程、A 点识别和计时
+│  ├─ Telemetry_Stream.c/.h  UART3 固定帧循迹诊断遥测
+│  ├─ PID_Tuner.c/.h         保留的架空轮速调参协议，比赛入口不初始化
+│  ├─ Display.c/.h           OLED 比赛状态、时间和循迹遥测
 │  └─ app_config.h           车辆机械参数、方向、PI 和循迹参数
 ├─ BSP/
 │  ├─ bsp_config.h           PWM、传感器极性和执行器硬件参数
@@ -45,14 +55,13 @@ G3507-BASE/
 │  ├─ Encoder.c/.h           两套 A/B 相编码器计数
 │  ├─ TrackSensor.c/.h       八路数字循迹采样
 │  ├─ Key.c/.h               三个按键消抖
-│  ├─ Servo.c/.h             两路 50 Hz 舵机
-│  ├─ Actuator.c/.h          电磁铁、机构 PWM、蜂鸣器和通用使能
-│  ├─ Serial.c/.h            调试、透明传输和相机串口发送接口
+│  ├─ Buzzer.c/.h            PB23 有源蜂鸣器
+│  ├─ Serial.c/.h            UART0/1 基础接口与 UART3 非阻塞 TX 队列
 │  ├─ JY901S.c/.h            JY901S 标准 0x55 帧解析
 │  └─ OLED.c/.h              SSD1306 128×64 软件 SPI 驱动
 ├─ Algorithm/
 │  ├─ PID.c/.h               左右轮独立增量式速度 PI
-│  └─ LineTrack.c/.h         加权误差与简单 PD 差速
+│  └─ LineTrack.c/.h         源工程动态速度、PD、丢线搜线和保护逻辑
 ├─ keil/                     Keil 工程、启动文件和链接脚本
 ├─ tools/                    SysConfig、构建和静态检查脚本
 ├─ G3507-BASE.syscfg         唯一的外设配置源
@@ -73,13 +82,31 @@ TIMG0 每 1 ms 产生一次中断，每 5 次执行一轮底盘闭环：
 1. 扫描按键并采样八路循迹输入。
 2. 原子读取左右编码器增量并清零。
 3. 按轮径、减速比和编码器线数换算两轮实际速度。
-4. 八路传感器按 +70 到 -70 加权求横向误差。
-5. 简单 PD 生成左右轮目标速度。
-6. 左右轮各自执行一套增量式 PI。
-7. 分别写入 TIMA1_C0 和 TIMA1_C1。
+4. 八路传感器从左到右按 `-350,-250,-150,-50,+50,+150,+250,+350`
+   求有效探头平均误差；负值表示线偏左，正值表示线偏右。连续相邻 3/4 路黑
+   仍分别生成 A 点弱/强标志，但不会绕过普通循迹公式。
+5. 有线时执行移植后的源公式（下列速度均已由 RPM 换算为 m/s）：
 
-没有检测到任何黑线时，左右目标、两套 PI 和两个 PWM 会立即清零。重新使能前，
-传感器必须连续 20 ms 得到既非全白、也非全黑的正常图案。
+~~~text
+base       = clamp(100 RPM - abs(error) * 0.10 RPM, 60 RPM, 100 RPM)
+derivative = 当前误差 - 上次误差（启动或重捕获首拍为 0）
+kp         = 0.035（abs(error)<100）
+             0.100（100<=abs(error)<200）
+             0.150（abs(error)>=200）
+correction = clamp(kp*error + 0.020*derivative, -18 RPM, +18 RPM)
+left       = clamp(base + correction, -175 RPM, +175 RPM)
+right      = clamp(base - correction, -175 RPM, +175 RPM)
+~~~
+
+6. 误差绝对值超过 25 才更新最后真实转向。全白后立即向其反方向以双轮
+   `±20 RPM` 快速打 50 ms，随后沿同一反方向以 `±10 RPM` 慢速搜线；连续
+   全白到 400 ms 后清 PI、零 PWM 并报告故障。
+7. 左右目标直接送入现有两套增量式速度 PI，再分别写 TIMA1_C0 和 TIMA1_C1。
+
+旧版入弯/弯中/出弯引导、三阶段全白恢复、误差滤波、D 项滤波、差速斜坡和
+左右轮目标斜坡均已移出控制路径。源工程原周期为 10 ms；当前周期为 5 ms，
+因此离散 Kd 按时间语义乘 2，其余速度、P、限幅按轮周长直接换算。重新使能前，
+传感器仍必须连续 20 ms 检测到至少一路黑线，A 点横线允许启动。
 
 中断优先级按实时性排列：
 
@@ -88,6 +115,7 @@ TIMG0 每 1 ms 产生一次中断，每 5 次执行一轮底盘闭环：
 | 0 | GPIOA/GPIOB Group1 | 两套编码器边沿计数 |
 | 1 | UART2 | JY901S 字节接收 |
 | 2 | TIMG0 | 1 ms 时基与 5 ms 控制 |
+| 3 | UART3 | 无线 DAP 遥测 TX FIFO 后台发送 |
 
 ## 4. 接线表
 
@@ -163,23 +191,22 @@ OLED 使用参考工程已经验证的软件四线 SPI 参数，不占用硬件 
 
 | 功能 | 引脚 | 配置/默认状态 |
 | --- | --- | --- |
-| 板载 CH340 调试 | PA10 TX / PA11 RX | UART0，115200 8N1 |
+| 板载 CH340 调试 | PA10 TX / PA11 RX | UART0，115200 8N1，轮速 PI 调参与遥测 |
 | 透明串口模块 | PB4 TX / PB5 RX | UART1，38400 8N1 |
-| 相机/视觉串口 | PB12 TX / PB13 RX | UART3，115200 8N1 |
+| 无线 DAP 遥测 | PB12 TX | UART3，115200 8N1，TX-only；PB13 未分配 |
 | 扩展 I2C | PA29 SCL / PA30 SDA | I2C1，400 kHz |
-| 舵机 1 | PB10 | TIMG8_C0，50 Hz，默认 1500 μs |
-| 舵机 2 | PB11 | TIMG8_C1，50 Hz，默认 1500 μs |
-| 电磁铁功率控制 | PA2 | TIMG7_C1，20 kHz，默认 0% |
-| 机构 PWM 0/1 | PB26 / PB27 | TIMG6_C0/C1，默认 0 |
 | 扩展按键 1/2 | PB0 / PB1 | 内部上拉，低电平按下 |
 | 有源蜂鸣器 | PB23 | 默认关闭 |
-| 通用使能 | PA1 | 默认低电平 |
+| 通用使能 | PA1 | 默认低电平，暂未提供 BSP 接口 |
 | 板载用户按键 | PB21 | 内部上拉，低电平按下 |
 | 板载 LED | PB22 | 高电平点亮 |
 | W25Q128 CS 保护 | PB6 | 始终保持高电平 |
 
-UART1 和 UART3 当前只保留基础发送接口，不接收车辆运动指令。I2C1 只完成
-SysConfig 外设和引脚配置，具体扩展器件协议应在后续 BSP 中按题目添加。
+`APP/PID_Tuner.c` 和电脑端工具继续保留，但当前比赛 `main.c` 不调用
+`PIDTuner_Init()`/`PIDTuner_Process()`，UART0 调参协议不会上电运行，也不会与
+PB21 比赛流程争用控制权。UART3 已改为无线 DAP 专用只发送遥测口，不接收任何
+电脑命令；UART1 仍只保留基础透明发送接口。
+I2C1 只完成 SysConfig 外设和引脚配置，具体扩展器件协议应在后续 BSP 中按题目添加。
 
 ### 4.6 明确保留、未分配
 
@@ -187,28 +214,53 @@ SysConfig 外设和引脚配置，具体扩展器件协议应在后续 BSP 中�
 | --- | --- |
 | PA8 | 不分配；TB6612 STBY 固定接 3.3 V |
 | PA15 | 不分配；ADC 功能已从 SysConfig 和工程源码移除 |
+| PA2 | 不分配；电磁铁 PWM 已移除 |
+| PB10 / PB11 | 不分配；两路舵机 PWM 已移除 |
 | PB18 | 不分配，保留模拟扩展 |
 | PB19 | 不分配，保留模拟扩展 |
 | PB25 | 不分配，保留模拟扩展 |
+| PB26 / PB27 | 不分配；机构 PWM 已移除 |
 
 PA18 保留给 BSL，PA19/PA20 保留给 SWD，PA23 保留给 VREF，PB7～PB9 是板载
 W25Q128 信号，也不作为普通扩展 GPIO 使用。
 
-## 5. 按键和 OLED 页面
+## 5. 当前 main.c、比赛流程和 OLED
 
-| 按键 | 功能 |
+上电后底盘保持零 PWM。把小车朝 B 点放在 A 点，循迹探头可以正压在 A 点黑色
+横线上；按一次板载 PB21 后开始计时并启动：
+
+1. `LEAVING_A`：横线连续消失 3 个 5 ms 样本后，才开放终点判断。
+2. `RUNNING`：循迹算法以最高 100 RPM（约 0.3403 m/s）运行，并按原公式
+   自动降速；配置下限为 60 RPM。16.5 s 的接近状态仍保留，但不切换速度档位。
+3. 再次检测到连续相邻至少 4 路黑色并确认 6 拍（30 ms）后，立即零 PWM
+   并冻结总时间；3 路弱标志只作诊断，不会完成比赛。
+4. 运行中再次按 PB21 可人工中止并回到等待；持续丢线则显示 `LOST` 并停车。
+
+OLED 顶行显示状态和 `SSS.mmm` 时间；第二行保持用户已确认的原始电平显示
+（白色=1、黑色=0），其余行显示黑色探头数、横线标志、误差、动态基础速度以及
+左右轮目标/反馈速度。PB0、PB1 第一版不分配比赛动作。
+
+### 5.1 Keil Watch 推荐变量
+
+进入 Debug 后，直接在 Watch 窗口添加下列表达式并展开结构：
+
+| Watch 表达式 | 用途 |
 | --- | --- |
-| PB21 板载按键 | 整车使能/停车；循迹输入未就绪时拒绝使能 |
-| PB0 KEY1 | 切换 OLED 页面 |
-| PB1 KEY2 | 在 0.08～0.30 m/s 间循环调整基础速度 |
+| `g_race_watch` | 比赛状态、终止原因、实时/冻结时间、A 点离开与终点连续计数 |
+| `g_car_watch` | 八路输入、源误差/离散微分、P/D、搜线方向、动态速度、轮速和 PWM |
+| `g_pid_watch` | 左右轮 PI 参数与目标/反馈/输出；该结构中的参数字段可在线修改 |
+| `g_motor_watch` | Motor BSP 最终写入的左右带符号 PWM |
+| `g_jy901s_watch` | 保留的 JY901S 解析量与在线状态 |
 
-OLED 页面：
+`g_car_watch` 和 `g_race_watch` 是只读镜像：真实控制代码不读取它们，调试器误写
+不会改变车辆状态，下一次 5 ms 控制或主循环刷新时会被真实值覆盖。重点观察：
 
-1. 循迹位图、误差、左右目标速度、实际速度和 PWM。
-2. JY901S 在线状态、姿态角、角速度、加速度和温度。
-3. 基础速度、使能拒绝次数和两路舵机脉宽。
-
-UART0 每 500 ms 输出一行诊断数据，便于架空调试编码器方向、速度和循迹输入。
+- 正常循迹：`filtered_error` 是为兼容旧遥测名称保留的未滤波误差，
+  `filtered_derivative` 是相邻有效帧差分；正修正表示左轮快、车辆向右转。
+- 全白恢复：`recovering=1`，`curve_direction=-1/+1` 分别表示实际向左/向右原地
+  搜线；方向固定与最后真实转向相反，持续 400 ms 后 `line_fault=1`。
+- A 点停车：`g_race_watch.state` 依次为 0、1、2、3，成功时 `result=1`，
+  `final_time_ms` 保持不再变化。
 
 ## 6. 需要按实物校准的参数
 
@@ -221,19 +273,35 @@ UART0 每 500 ms 输出一行诊断数据，便于架空调试编码器方向、
 | MOTOR_GEAR_RATIO | 28 | 减速比 |
 | WHEEL_CIRCUMFERENCE_M | 0.204203519 | 轮胎实测周长 |
 | LEFT/RIGHT_ENCODER_SIGN | +1 / -1 | 编码器正方向 |
-| LEFT/RIGHT_MOTOR_OUTPUT_SIGN | -1 / +1 | 电机输出正方向 |
-| SPEED_PI_KP/KI | 400 / 400 | 两轮速度 PI 初值 |
-| TRACK_STEER_KP/KD_MPS | 0.0022 / 0.0008 | 循迹差速初值 |
+| LEFT/RIGHT_MOTOR_OUTPUT_SIGN | -1 / -1 | 电机输出正方向，按当前实车方向确认 |
+| SPEED_PI_KP/KI | 150 / 300 | 当前两轮速度 PI 初值，未随循迹移植替换 |
+| SPEED_PI_OUTPUT_LIMIT_COUNTS | 3200 | 速度闭环 PWM 硬限幅，Watch 只能调低不能突破 |
+| WHEEL_SPEED_TARGET_LIMIT_MPS | 0.45 | SetSpeed_Left/Right 目标速度绝对值上限 |
+| TRACK_FORWARD_SPEED_SCALE | 5.0 | 小误差直线基础速度和目标速度上限倍率 |
+| TRACK_BASE_SPEED/MAX/MIN_MPS | 0.340339 / 0.340339 / 0.204204 | 100/100/60 RPM |
+| TRACK_ERROR_SLOWDOWN_MPS_PER_ERROR | 0.000340339 | 每误差单位降低 0.10 RPM |
+| TRACK_STEER_KP_MPS | 0.000119119 | 直线小误差 Kp=0.035，保持上一版 |
+| TRACK_STEER_ENTRY_KP_MPS | 0.000340339 | 入弯 Kp=0.100，abs(error)>=100 |
+| TRACK_STEER_CURVE_KP_MPS | 0.000510509 | 弯中 Kp=0.150，abs(error)>=200 |
+| TRACK_STEER_KD_MPS | 0.000068068 | 5 ms 离散 D=0.020，保持上一版 |
+| TRACK_CORRECTION_LIMIT_MPS | 0.061261 | 全程保持上一版差速修正上限 18 RPM |
+| TRACK_TARGET_LIMIT_MPS | 0.595594 | 单轮目标上限 175 RPM |
+| TRACK_RECOVERY_KICK_SPEED_MPS | 0.068068 | 丢线前 50 ms 反向快速打 20 RPM |
+| TRACK_RECOVERY_SPEED_MPS | 0.034034 | 后续反向慢速搜线 10 RPM |
+| TRACK_LOST_PROTECT_MS | 400 | 连续丢线故障停车时间 |
+| TRACK_DIRECTION_DEADBAND | 25 | 更新最后转向所需误差绝对值 |
+| RACE_CRUISE/APPROACH_SPEED_MPS | 0.340339 / 0.340339 | 小误差直线使用 100 RPM 上限 |
 
 硬件与模块参数集中修改 BSP/bsp_config.h：
 
 | 参数 | 当前基线 | 说明 |
 | --- | --- | --- |
 | MOTOR_PWM_PERIOD_COUNTS | 8000 | TIMA1 双路 PWM 周期 |
-| MOTOR_PWM_LIMIT_COUNTS | 7800 | 电机 PWM 安全上限 |
+| MOTOR_PWM_LIMIT_COUNTS | 7800 | Motor BSP 原始 PWM 最终保护；速度闭环另限 3200 |
 | TRACK_ACTIVE_LOW_MASK | 0xFF | 八路均为低电平检测到黑线 |
 | TRACK_READY_SAMPLES | 4 | 使能前连续正常采样次数 |
-| SERVO_MIN/NEUTRAL/MAX_PULSE_US | 1000/1500/2000 | 舵机脉宽范围 |
+| TRACK_MARKER_WEAK_MIN_CONTIGUOUS | 3 | A 点弱标志：连续相邻黑色探头数 |
+| TRACK_MARKER_STRONG_MIN_CONTIGUOUS | 4 | A 点强标志：连续相邻黑色探头数 |
 | JY901S_OFFLINE_TIMEOUT_MS | 500 | IMU 离线判定时间 |
 
 电机自带编码器并不代表这些参数对所有型号都相同。铭牌线数可能按单相、双相或
@@ -246,12 +314,15 @@ UART0 每 500 ms 输出一行诊断数据，便于架空调试编码器方向、
 - MSPM0 SDK：C:\ti\mspm0_sdk_2_01_00_03
 - SysConfig：C:\ti\sysconfig_1.20.0
 - Keil：C:\Keil_v5\UV4\UV4.exe
+- Python：3.13，已安装 pyserial 3.5，Tkinter 8.6
 
 PowerShell：
 
 ~~~powershell
 cd C:\Users\han_z\Desktop\TEST_TI\G3507-BASE
 .\tools\run_sysconfig_keil.bat "$PWD" G3507-BASE.syscfg
+.\tools\run_control_logic_tests.ps1
+.\tools\run_telemetry_tests.ps1
 .\tools\static_check.ps1
 .\tools\build.cmd
 ~~~
@@ -264,16 +335,106 @@ keil/Objects/G3507_BASE.axf
 keil/Objects/G3507_BASE.hex
 ~~~
 
-## 8. 首次上板顺序
+## 8. UART3 无线 DAP 循迹实时监视与 CSV
 
-1. 先断开电机主电源，核对 STBY=3.3 V、全部共地和 GPIO 电平。
-2. 将车轮架空，烧录程序；上电默认未使能，方向脚和双路 PWM 都为 0。
-3. 手转左右轮，观察 UART0/OLED 的左右速度符号是否与前进方向一致。
-4. 从最左 CH1 到最右 CH8 逐个遮挡，确认 OLED 位图从 bit7 到 bit0 依次变化，且遮挡黑线时对应位为 1。
-5. 检查 JY901S 页面是否显示 ONLINE，静止时姿态和加速度是否合理。
-6. 接通电机电源，把基础速度先保持在最低档，再按 PB21 短时使能。
-7. 若轮子方向错误，先核对接线，再修改输出符号；若速度符号错误，修改编码器符号。
-8. 完成架空验证后再落地，依次校准轮径/编码器比例、速度 PI 和循迹 PD。
+比赛固件每 10 ms 从只读的 Car/Race 快照生成一个固定 74 字节帧，通过
+`UART3_TX=PB12` 发送。UART3 使用 115200 8N1，PB13 不配置为 RX。连接方式：
 
-当前结论是 SysConfig、静态源码和 Keil 构建已经通过；电机方向、传感器极性、
-JY901S 实际波特率以及控制参数仍必须以实车测试为准。
+| MSPM0 | 无线 DAP |
+| --- | --- |
+| PB12 / UART3_TX | UART RX |
+| GND | GND |
+
+不要连接无线 DAP 的 TX 或供电脚；必须确认其串口逻辑电平为 3.3 V TTL。
+UART3 的 512 字节软件环形缓冲由最低优先级 TX 中断消费。队列空间不足时整帧
+丢弃并递增序号/丢帧计数，绝不在 5 ms 控制中断中打印，也不会等待串口、修改
+电机目标、切换比赛状态或调用停车接口。
+
+电脑端工具只读接收，不会像 PID Tuner 一样发送 `KEEP`、`STOP` 或参数命令：
+
+~~~powershell
+cd C:\Users\han_z\Desktop\TEST_TI\G3507-BASE
+.\tools\run_track_monitor.cmd
+# 也可以预先指定无线 DAP 的串口
+.\tools\run_track_monitor.cmd --port COM6
+~~~
+
+界面持续显示八路探头、比赛状态、原始/源 PD 误差、离散微分、P/D 项、差速修正、
+动态基础速度、左右轮目标/反馈、编码器、PWM、丢线状态和无线链路统计，并绘制
+最近 10 秒曲线。默认勾选“随比赛自动记录”：检测到 PB21 启动后清空旧数据并
+开始记录；正常完成、持续丢线或再次按 PB21 人工停止时结束记录但保留全部样本。
+点击“导出 CSV”后默认保存到 `Documents\G3507_Telemetry`，编码为 UTF-8 with BOM，
+可直接用 Excel 打开或把文件交给 Codex 分析。
+
+固定帧使用 `A5 5A` 同步头、版本/类型/负载长度、16 位序号、64 字节负载和
+CRC16-CCITT-FALSE。CSV 同时记录电脑时间、板端毫秒、控制周期、序号缺口和 MCU
+丢帧累计，因此可以区分控制算法问题、无线链路丢包和板端发送队列拥塞。
+
+## 9. Type-C/CH340 动态轮速 PI 调参
+
+本节工具仅作为后续底盘标定入口保留。当前比赛 `main.c` 没有初始化调参协议；
+需要重新启用时，应在架空车轮的专用调试入口中显式调用 PID Tuner，而不要与
+PB21 一圈比赛流程同时运行。
+
+电脑端工具为 `tools/pid_tuner.py`。它复用板上的 UART0/CH340，实时绘制左右轮
+目标速度、编码器反馈和 PI 输出 PWM，并把全部遥测保存到
+`tools/pid_logs/pid_时间.csv`。启动方式：
+
+~~~powershell
+cd C:\Users\han_z\Desktop\TEST_TI\G3507-BASE
+.\tools\run_pid_tuner.cmd
+# 也可以直接指定端口
+.\tools\run_pid_tuner.cmd --port COM6
+~~~
+
+若另一台电脑缺少 pyserial：
+
+~~~powershell
+python -m pip install pyserial
+~~~
+
+建议按以下顺序首次测试：
+
+1. 先断开电机主电源，核对 STBY=3.3 V、全部共地和电机/编码器接线。
+2. 烧录当前固件，用 Type-C 连接电脑；设备管理器中应出现 `USB-SERIAL CH340 (COMx)`。
+3. 车轮完全架空，再接通电机电源；打开工具并选择 CH340 对应 COM 口。
+4. 先手转轮子观察 OLED：车辆前进方向应为正，后退方向应为负。
+5. 连接后先将 PWM 限幅保持在 800～1200、目标设为 80 mm/s，应用 PI 参数。
+6. 点击“确认架空并 ARM”，再点击“发送目标”；随时可按“紧急停止”。
+7. 先分别测试左轮和右轮，再测试两轮相同目标，观察上升时间、超调、稳态误差、
+   PWM 是否长期饱和以及左右轮差异。
+8. 需要自动尝试时选择单轮并点击“开始受限自动整定”。工具最多运行 8 轮，
+   每轮约 2.2 秒，轮间先停车；结束后把评分最佳的 Kp/Ki 写回 MCU RAM 并保持停车。
+
+串口命令均为 ASCII 文本，以换行结束：
+
+| 命令 | 作用 |
+| --- | --- |
+| `ARM LIFTED` | 明确确认车轮架空并允许速度目标 |
+| `STOP` | 立即停车并解除 ARM |
+| `KEEP` / `PING` | 喂 1 秒通信看门狗；PING 还返回 PONG |
+| `TARGET L R` | 设置左右目标速度，单位 mm/s，范围 -450～+450 |
+| `KP L R` / `KI L R` | 在线修改左右 PI 参数，范围 0～5000 |
+| `LIMIT L R` | 设置左右闭环 PWM 限幅，不能超过 3200 |
+| `RESET` | 清空两侧 PI 历史状态 |
+| `STREAM 0/1` | 关闭/打开 20 ms 遥测流 |
+| `STATUS` | 返回 ARM、Kp、Ki 和限幅 |
+
+遥测格式如下，速度单位为 mm/s，PWM 单位为定时器计数：
+
+~~~text
+T,ms,Ltarget,Lfeedback,Lpwm,Rtarget,Rfeedback,Rpwm,Lcount,Rcount
+~~~
+
+安全边界：必须收到 `ARM LIFTED` 才接受速度目标；上位机超过 1 秒无命令自动停车；
+目标硬限幅为 ±450 mm/s；速度闭环 PWM 硬限幅为 3200；自动整定还会把被调轮
+限制到不高于 1500。关闭窗口、断开串口和取消整定都会尝试先发送 `STOP`。
+
+自动整定是基于阶跃响应的受限启发式：它根据稳态误差、超调、振荡次数和 PWM
+饱和比例逐轮调整参数，不保证一次就得到最终值。机械摩擦、供电电压、轮胎负载、
+编码器比例和测试目标都会影响结果，因此应在实际常用速度附近再次人工确认。
+工具写回的是 RAM 参数，复位后仍恢复 `APP/app_config.h` 中的编译默认值；确认参数后
+再把最终结果固化到源码并重新构建。
+
+当前结论是 SysConfig、静态源码和 Keil 构建可在电脑端验证；CH340 实际枚举、
+串口收发、真实阶跃曲线和自动整定结果必须接上这块实物板后确认。

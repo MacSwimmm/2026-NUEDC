@@ -4,6 +4,22 @@
 #include <stdint.h>
 
 /**
+ * Keil Watch 电机镜像。
+ * command 字段按“车辆相对方向”填写：正数=该侧车轮向车辆前进方向转。
+ * applied 字段为完成安装方向补偿后，实际写入 Motor BSP 的带符号 PWM。
+ */
+typedef struct {
+    uint8_t enable;                   /* Watch 写 1 才允许输出，写 0 立即停车 */
+    int32_t left_command_pwm;         /* Watch 可写：左轮车辆相对 PWM */
+    int32_t right_command_pwm;        /* Watch 可写：右轮车辆相对 PWM */
+    int32_t left_applied_pwm;         /* 实际写入左电机驱动的限幅后 PWM */
+    int32_t right_applied_pwm;        /* 实际写入右电机驱动的限幅后 PWM */
+} MotorWatch_t;
+
+/** 非 static、volatile 全局变量，可直接添加到 Keil Watch。 */
+extern volatile MotorWatch_t g_motor_watch;
+
+/**
  * @file Motor.h
  * @brief TB6612 双路方向与 PWM 输出接口。
  *

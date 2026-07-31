@@ -1,9 +1,32 @@
 #include "PID.h"
 
+volatile PIDWatch_t g_pid_watch;
+
 /*
  * 本文件只保存控制器状态并执行公式，不包含电机方向、编码器极性或硬件写寄存器。
  * 这些与具体车辆相关的约定统一由 APP 和 BSP 负责。
  */
+
+void PID_WatchInit(float kp, float ki, float output_limit)
+{
+    g_pid_watch.reset_request = 0U;
+
+    g_pid_watch.left.kp = kp;
+    g_pid_watch.left.ki = ki;
+    g_pid_watch.left.output_limit = output_limit;
+    g_pid_watch.left.target = 0.0f;
+    g_pid_watch.left.feedback = 0.0f;
+    g_pid_watch.left.error = 0.0f;
+    g_pid_watch.left.output = 0.0f;
+
+    g_pid_watch.right.kp = kp;
+    g_pid_watch.right.ki = ki;
+    g_pid_watch.right.output_limit = output_limit;
+    g_pid_watch.right.target = 0.0f;
+    g_pid_watch.right.feedback = 0.0f;
+    g_pid_watch.right.error = 0.0f;
+    g_pid_watch.right.output = 0.0f;
+}
 
 /**
  * @brief 初始化一套增量式 PI。

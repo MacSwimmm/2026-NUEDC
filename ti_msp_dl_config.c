@@ -41,9 +41,7 @@
 #include "ti_msp_dl_config.h"
 
 DL_TimerA_backupConfig gPWM_0Backup;
-DL_TimerG_backupConfig gMAGNET_PWMBackup;
-DL_TimerG_backupConfig gMECHANISM_PWMBackup;
-DL_UART_Main_backupConfig gCAMERA_UARTBackup;
+DL_UART_Main_backupConfig gTELEMETRY_UARTBackup;
 
 /*
  *  ======== SYSCFG_DL_init ========
@@ -56,22 +54,17 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     /* Module-Specific Initializations*/
     SYSCFG_DL_SYSCTL_init();
     SYSCFG_DL_PWM_0_init();
-    SYSCFG_DL_SERVO_PWM_init();
-    SYSCFG_DL_MAGNET_PWM_init();
-    SYSCFG_DL_MECHANISM_PWM_init();
     SYSCFG_DL_SYSTEM_TICK_init();
     SYSCFG_DL_EXPANSION_I2C_init();
     SYSCFG_DL_DEBUG_UART_init();
     SYSCFG_DL_JY901S_UART_init();
     SYSCFG_DL_ZIGBEE_UART_init();
-    SYSCFG_DL_CAMERA_UART_init();
+    SYSCFG_DL_TELEMETRY_UART_init();
     SYSCFG_DL_SYSTICK_init();
     /* Ensure backup structures have no valid state */
 	gPWM_0Backup.backupRdy 	= false;
-	gMAGNET_PWMBackup.backupRdy 	= false;
-	gMECHANISM_PWMBackup.backupRdy 	= false;
 
-	gCAMERA_UARTBackup.backupRdy 	= false;
+	gTELEMETRY_UARTBackup.backupRdy 	= false;
 
 }
 /*
@@ -83,9 +76,7 @@ SYSCONFIG_WEAK bool SYSCFG_DL_saveConfiguration(void)
     bool retStatus = true;
 
 	retStatus &= DL_TimerA_saveConfiguration(PWM_0_INST, &gPWM_0Backup);
-	retStatus &= DL_TimerG_saveConfiguration(MAGNET_PWM_INST, &gMAGNET_PWMBackup);
-	retStatus &= DL_TimerG_saveConfiguration(MECHANISM_PWM_INST, &gMECHANISM_PWMBackup);
-	retStatus &= DL_UART_Main_saveConfiguration(CAMERA_UART_INST, &gCAMERA_UARTBackup);
+	retStatus &= DL_UART_Main_saveConfiguration(TELEMETRY_UART_INST, &gTELEMETRY_UARTBackup);
 
     return retStatus;
 }
@@ -96,9 +87,7 @@ SYSCONFIG_WEAK bool SYSCFG_DL_restoreConfiguration(void)
     bool retStatus = true;
 
 	retStatus &= DL_TimerA_restoreConfiguration(PWM_0_INST, &gPWM_0Backup, false);
-	retStatus &= DL_TimerG_restoreConfiguration(MAGNET_PWM_INST, &gMAGNET_PWMBackup, false);
-	retStatus &= DL_TimerG_restoreConfiguration(MECHANISM_PWM_INST, &gMECHANISM_PWMBackup, false);
-	retStatus &= DL_UART_Main_restoreConfiguration(CAMERA_UART_INST, &gCAMERA_UARTBackup);
+	retStatus &= DL_UART_Main_restoreConfiguration(TELEMETRY_UART_INST, &gTELEMETRY_UARTBackup);
 
     return retStatus;
 }
@@ -108,29 +97,23 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_GPIO_reset(GPIOA);
     DL_GPIO_reset(GPIOB);
     DL_TimerA_reset(PWM_0_INST);
-    DL_TimerG_reset(SERVO_PWM_INST);
-    DL_TimerG_reset(MAGNET_PWM_INST);
-    DL_TimerG_reset(MECHANISM_PWM_INST);
     DL_TimerG_reset(SYSTEM_TICK_INST);
     DL_I2C_reset(EXPANSION_I2C_INST);
     DL_UART_Main_reset(DEBUG_UART_INST);
     DL_UART_Main_reset(JY901S_UART_INST);
     DL_UART_Main_reset(ZIGBEE_UART_INST);
-    DL_UART_Main_reset(CAMERA_UART_INST);
+    DL_UART_Main_reset(TELEMETRY_UART_INST);
 
 
     DL_GPIO_enablePower(GPIOA);
     DL_GPIO_enablePower(GPIOB);
     DL_TimerA_enablePower(PWM_0_INST);
-    DL_TimerG_enablePower(SERVO_PWM_INST);
-    DL_TimerG_enablePower(MAGNET_PWM_INST);
-    DL_TimerG_enablePower(MECHANISM_PWM_INST);
     DL_TimerG_enablePower(SYSTEM_TICK_INST);
     DL_I2C_enablePower(EXPANSION_I2C_INST);
     DL_UART_Main_enablePower(DEBUG_UART_INST);
     DL_UART_Main_enablePower(JY901S_UART_INST);
     DL_UART_Main_enablePower(ZIGBEE_UART_INST);
-    DL_UART_Main_enablePower(CAMERA_UART_INST);
+    DL_UART_Main_enablePower(TELEMETRY_UART_INST);
 
     delay_cycles(POWER_STARTUP_DELAY);
 }
@@ -142,16 +125,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_enableOutput(GPIO_PWM_0_C0_PORT, GPIO_PWM_0_C0_PIN);
     DL_GPIO_initPeripheralOutputFunction(GPIO_PWM_0_C1_IOMUX,GPIO_PWM_0_C1_IOMUX_FUNC);
     DL_GPIO_enableOutput(GPIO_PWM_0_C1_PORT, GPIO_PWM_0_C1_PIN);
-    DL_GPIO_initPeripheralOutputFunction(GPIO_SERVO_PWM_C0_IOMUX,GPIO_SERVO_PWM_C0_IOMUX_FUNC);
-    DL_GPIO_enableOutput(GPIO_SERVO_PWM_C0_PORT, GPIO_SERVO_PWM_C0_PIN);
-    DL_GPIO_initPeripheralOutputFunction(GPIO_SERVO_PWM_C1_IOMUX,GPIO_SERVO_PWM_C1_IOMUX_FUNC);
-    DL_GPIO_enableOutput(GPIO_SERVO_PWM_C1_PORT, GPIO_SERVO_PWM_C1_PIN);
-    DL_GPIO_initPeripheralOutputFunction(GPIO_MAGNET_PWM_C1_IOMUX,GPIO_MAGNET_PWM_C1_IOMUX_FUNC);
-    DL_GPIO_enableOutput(GPIO_MAGNET_PWM_C1_PORT, GPIO_MAGNET_PWM_C1_PIN);
-    DL_GPIO_initPeripheralOutputFunction(GPIO_MECHANISM_PWM_C0_IOMUX,GPIO_MECHANISM_PWM_C0_IOMUX_FUNC);
-    DL_GPIO_enableOutput(GPIO_MECHANISM_PWM_C0_PORT, GPIO_MECHANISM_PWM_C0_PIN);
-    DL_GPIO_initPeripheralOutputFunction(GPIO_MECHANISM_PWM_C1_IOMUX,GPIO_MECHANISM_PWM_C1_IOMUX_FUNC);
-    DL_GPIO_enableOutput(GPIO_MECHANISM_PWM_C1_PORT, GPIO_MECHANISM_PWM_C1_PIN);
 
     DL_GPIO_initPeripheralInputFunctionFeatures(GPIO_EXPANSION_I2C_IOMUX_SDA,
         GPIO_EXPANSION_I2C_IOMUX_SDA_FUNC, DL_GPIO_INVERSION_DISABLE,
@@ -177,9 +150,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_initPeripheralInputFunction(
         GPIO_ZIGBEE_UART_IOMUX_RX, GPIO_ZIGBEE_UART_IOMUX_RX_FUNC);
     DL_GPIO_initPeripheralOutputFunction(
-        GPIO_CAMERA_UART_IOMUX_TX, GPIO_CAMERA_UART_IOMUX_TX_FUNC);
-    DL_GPIO_initPeripheralInputFunction(
-        GPIO_CAMERA_UART_IOMUX_RX, GPIO_CAMERA_UART_IOMUX_RX_FUNC);
+        GPIO_TELEMETRY_UART_IOMUX_TX, GPIO_TELEMETRY_UART_IOMUX_TX_FUNC);
 
     DL_GPIO_initDigitalOutput(OLED_RST_PIN_RST_IOMUX);
 
@@ -363,140 +334,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_PWM_0_init(void) {
 
 
 }
-/*
- * Timer clock configuration to be sourced by  / 1 (40000000 Hz)
- * timerClkFreq = (timerClkSrc / (timerClkDivRatio * (timerClkPrescale + 1)))
- *   1000000 Hz = 40000000 Hz / (1 * (39 + 1))
- */
-static const DL_TimerG_ClockConfig gSERVO_PWMClockConfig = {
-    .clockSel = DL_TIMER_CLOCK_BUSCLK,
-    .divideRatio = DL_TIMER_CLOCK_DIVIDE_1,
-    .prescale = 39U
-};
-
-static const DL_TimerG_PWMConfig gSERVO_PWMConfig = {
-    .pwmMode = DL_TIMER_PWM_MODE_EDGE_ALIGN_UP,
-    .period = 20000,
-    .startTimer = DL_TIMER_START,
-};
-
-SYSCONFIG_WEAK void SYSCFG_DL_SERVO_PWM_init(void) {
-
-    DL_TimerG_setClockConfig(
-        SERVO_PWM_INST, (DL_TimerG_ClockConfig *) &gSERVO_PWMClockConfig);
-
-    DL_TimerG_initPWMMode(
-        SERVO_PWM_INST, (DL_TimerG_PWMConfig *) &gSERVO_PWMConfig);
-
-    DL_TimerG_setCaptureCompareOutCtl(SERVO_PWM_INST, DL_TIMER_CC_OCTL_INIT_VAL_LOW,
-		DL_TIMER_CC_OCTL_INV_OUT_DISABLED, DL_TIMER_CC_OCTL_SRC_FUNCVAL,
-		DL_TIMERG_CAPTURE_COMPARE_0_INDEX);
-
-    DL_TimerG_setCaptCompUpdateMethod(SERVO_PWM_INST, DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE, DL_TIMERG_CAPTURE_COMPARE_0_INDEX);
-    DL_TimerG_setCaptureCompareValue(SERVO_PWM_INST, 0, DL_TIMER_CC_0_INDEX);
-
-    DL_TimerG_setCaptureCompareOutCtl(SERVO_PWM_INST, DL_TIMER_CC_OCTL_INIT_VAL_LOW,
-		DL_TIMER_CC_OCTL_INV_OUT_DISABLED, DL_TIMER_CC_OCTL_SRC_FUNCVAL,
-		DL_TIMERG_CAPTURE_COMPARE_1_INDEX);
-
-    DL_TimerG_setCaptCompUpdateMethod(SERVO_PWM_INST, DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE, DL_TIMERG_CAPTURE_COMPARE_1_INDEX);
-    DL_TimerG_setCaptureCompareValue(SERVO_PWM_INST, 0, DL_TIMER_CC_1_INDEX);
-
-    DL_TimerG_enableClock(SERVO_PWM_INST);
-
-
-    
-    DL_TimerG_setCCPDirection(SERVO_PWM_INST , DL_TIMER_CC0_OUTPUT | DL_TIMER_CC1_OUTPUT );
-
-
-}
-/*
- * Timer clock configuration to be sourced by  / 1 (80000000 Hz)
- * timerClkFreq = (timerClkSrc / (timerClkDivRatio * (timerClkPrescale + 1)))
- *   80000000 Hz = 80000000 Hz / (1 * (0 + 1))
- */
-static const DL_TimerG_ClockConfig gMAGNET_PWMClockConfig = {
-    .clockSel = DL_TIMER_CLOCK_BUSCLK,
-    .divideRatio = DL_TIMER_CLOCK_DIVIDE_1,
-    .prescale = 0U
-};
-
-static const DL_TimerG_PWMConfig gMAGNET_PWMConfig = {
-    .pwmMode = DL_TIMER_PWM_MODE_EDGE_ALIGN_UP,
-    .period = 4000,
-    .startTimer = DL_TIMER_START,
-};
-
-SYSCONFIG_WEAK void SYSCFG_DL_MAGNET_PWM_init(void) {
-
-    DL_TimerG_setClockConfig(
-        MAGNET_PWM_INST, (DL_TimerG_ClockConfig *) &gMAGNET_PWMClockConfig);
-
-    DL_TimerG_initPWMMode(
-        MAGNET_PWM_INST, (DL_TimerG_PWMConfig *) &gMAGNET_PWMConfig);
-
-    DL_TimerG_setCaptureCompareOutCtl(MAGNET_PWM_INST, DL_TIMER_CC_OCTL_INIT_VAL_LOW,
-		DL_TIMER_CC_OCTL_INV_OUT_DISABLED, DL_TIMER_CC_OCTL_SRC_FUNCVAL,
-		DL_TIMERG_CAPTURE_COMPARE_1_INDEX);
-
-    DL_TimerG_setCaptCompUpdateMethod(MAGNET_PWM_INST, DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE, DL_TIMERG_CAPTURE_COMPARE_1_INDEX);
-    DL_TimerG_setCaptureCompareValue(MAGNET_PWM_INST, 0, DL_TIMER_CC_1_INDEX);
-
-    DL_TimerG_enableClock(MAGNET_PWM_INST);
-
-
-    
-    DL_TimerG_setCCPDirection(MAGNET_PWM_INST , DL_TIMER_CC1_OUTPUT );
-
-
-}
-/*
- * Timer clock configuration to be sourced by  / 1 (80000000 Hz)
- * timerClkFreq = (timerClkSrc / (timerClkDivRatio * (timerClkPrescale + 1)))
- *   80000000 Hz = 80000000 Hz / (1 * (0 + 1))
- */
-static const DL_TimerG_ClockConfig gMECHANISM_PWMClockConfig = {
-    .clockSel = DL_TIMER_CLOCK_BUSCLK,
-    .divideRatio = DL_TIMER_CLOCK_DIVIDE_1,
-    .prescale = 0U
-};
-
-static const DL_TimerG_PWMConfig gMECHANISM_PWMConfig = {
-    .pwmMode = DL_TIMER_PWM_MODE_EDGE_ALIGN_UP,
-    .period = 8000,
-    .startTimer = DL_TIMER_START,
-};
-
-SYSCONFIG_WEAK void SYSCFG_DL_MECHANISM_PWM_init(void) {
-
-    DL_TimerG_setClockConfig(
-        MECHANISM_PWM_INST, (DL_TimerG_ClockConfig *) &gMECHANISM_PWMClockConfig);
-
-    DL_TimerG_initPWMMode(
-        MECHANISM_PWM_INST, (DL_TimerG_PWMConfig *) &gMECHANISM_PWMConfig);
-
-    DL_TimerG_setCaptureCompareOutCtl(MECHANISM_PWM_INST, DL_TIMER_CC_OCTL_INIT_VAL_LOW,
-		DL_TIMER_CC_OCTL_INV_OUT_DISABLED, DL_TIMER_CC_OCTL_SRC_FUNCVAL,
-		DL_TIMERG_CAPTURE_COMPARE_0_INDEX);
-
-    DL_TimerG_setCaptCompUpdateMethod(MECHANISM_PWM_INST, DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE, DL_TIMERG_CAPTURE_COMPARE_0_INDEX);
-    DL_TimerG_setCaptureCompareValue(MECHANISM_PWM_INST, 0, DL_TIMER_CC_0_INDEX);
-
-    DL_TimerG_setCaptureCompareOutCtl(MECHANISM_PWM_INST, DL_TIMER_CC_OCTL_INIT_VAL_LOW,
-		DL_TIMER_CC_OCTL_INV_OUT_DISABLED, DL_TIMER_CC_OCTL_SRC_FUNCVAL,
-		DL_TIMERG_CAPTURE_COMPARE_1_INDEX);
-
-    DL_TimerG_setCaptCompUpdateMethod(MECHANISM_PWM_INST, DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE, DL_TIMERG_CAPTURE_COMPARE_1_INDEX);
-    DL_TimerG_setCaptureCompareValue(MECHANISM_PWM_INST, 0, DL_TIMER_CC_1_INDEX);
-
-    DL_TimerG_enableClock(MECHANISM_PWM_INST);
-
-
-    
-    DL_TimerG_setCCPDirection(MECHANISM_PWM_INST , DL_TIMER_CC0_OUTPUT | DL_TIMER_CC1_OUTPUT );
-
-
-}
 
 
 
@@ -596,6 +433,12 @@ SYSCONFIG_WEAK void SYSCFG_DL_DEBUG_UART_init(void)
     DL_UART_Main_setBaudRateDivisor(DEBUG_UART_INST, DEBUG_UART_IBRD_40_MHZ_115200_BAUD, DEBUG_UART_FBRD_40_MHZ_115200_BAUD);
 
 
+    /* Configure Interrupts */
+    DL_UART_Main_enableInterrupt(DEBUG_UART_INST,
+                                 DL_UART_MAIN_INTERRUPT_RX);
+    /* Setting the Interrupt Priority */
+    NVIC_SetPriority(DEBUG_UART_INST_INT_IRQN, 2);
+
 
     DL_UART_Main_enable(DEBUG_UART_INST);
 }
@@ -670,36 +513,36 @@ SYSCONFIG_WEAK void SYSCFG_DL_ZIGBEE_UART_init(void)
     DL_UART_Main_enable(ZIGBEE_UART_INST);
 }
 
-static const DL_UART_Main_ClockConfig gCAMERA_UARTClockConfig = {
+static const DL_UART_Main_ClockConfig gTELEMETRY_UARTClockConfig = {
     .clockSel    = DL_UART_MAIN_CLOCK_BUSCLK,
     .divideRatio = DL_UART_MAIN_CLOCK_DIVIDE_RATIO_1
 };
 
-static const DL_UART_Main_Config gCAMERA_UARTConfig = {
+static const DL_UART_Main_Config gTELEMETRY_UARTConfig = {
     .mode        = DL_UART_MAIN_MODE_NORMAL,
-    .direction   = DL_UART_MAIN_DIRECTION_TX_RX,
+    .direction   = DL_UART_MAIN_DIRECTION_TX,
     .flowControl = DL_UART_MAIN_FLOW_CONTROL_NONE,
     .parity      = DL_UART_MAIN_PARITY_NONE,
     .wordLength  = DL_UART_MAIN_WORD_LENGTH_8_BITS,
     .stopBits    = DL_UART_MAIN_STOP_BITS_ONE
 };
 
-SYSCONFIG_WEAK void SYSCFG_DL_CAMERA_UART_init(void)
+SYSCONFIG_WEAK void SYSCFG_DL_TELEMETRY_UART_init(void)
 {
-    DL_UART_Main_setClockConfig(CAMERA_UART_INST, (DL_UART_Main_ClockConfig *) &gCAMERA_UARTClockConfig);
+    DL_UART_Main_setClockConfig(TELEMETRY_UART_INST, (DL_UART_Main_ClockConfig *) &gTELEMETRY_UARTClockConfig);
 
-    DL_UART_Main_init(CAMERA_UART_INST, (DL_UART_Main_Config *) &gCAMERA_UARTConfig);
+    DL_UART_Main_init(TELEMETRY_UART_INST, (DL_UART_Main_Config *) &gTELEMETRY_UARTConfig);
     /*
      * Configure baud rate by setting oversampling and baud rate divisors.
      *  Target baud rate: 115200
      *  Actual baud rate: 115190.78
      */
-    DL_UART_Main_setOversampling(CAMERA_UART_INST, DL_UART_OVERSAMPLING_RATE_16X);
-    DL_UART_Main_setBaudRateDivisor(CAMERA_UART_INST, CAMERA_UART_IBRD_80_MHZ_115200_BAUD, CAMERA_UART_FBRD_80_MHZ_115200_BAUD);
+    DL_UART_Main_setOversampling(TELEMETRY_UART_INST, DL_UART_OVERSAMPLING_RATE_16X);
+    DL_UART_Main_setBaudRateDivisor(TELEMETRY_UART_INST, TELEMETRY_UART_IBRD_80_MHZ_115200_BAUD, TELEMETRY_UART_FBRD_80_MHZ_115200_BAUD);
 
 
 
-    DL_UART_Main_enable(CAMERA_UART_INST);
+    DL_UART_Main_enable(TELEMETRY_UART_INST);
 }
 
 SYSCONFIG_WEAK void SYSCFG_DL_SYSTICK_init(void)

@@ -1,116 +1,96 @@
-#include <stdio.h>
+#include <stdint.h>
 
 #include "Board.h"
 #include "Car_Control.h"
 #include "Display.h"
-#include "JY901S.h"
 #include "Key.h"
+#include "Race_Control.h"
+#include "Telemetry_Stream.h"
 #include "app_config.h"
 #include "ti_msp_dl_config.h"
 
-/*
- * main.c 只负责裸机低频调度：处理按键事件、刷新 OLED、输出调试日志并休眠。
- * 5 ms 运动控制由 Board 注册到 TIMG0 中断，主循环绝不直接重复执行闭环。
+/**
+ * @file main.c
+ * @brief 赛题第 2 项第一版入口：PB21 启动、一圈循迹、A 点停车与时间显示。
+ *
+ * 主循环只承担低频流程编排：
+ * - 取走已经在 5 ms 中断中完成消抖的 PB21 事件；
+ * - 推进 A 点离开/返回判断、1 ms 计时和圈末预减速；
+ * - 每 10 ms 把最新只读控制快照压入 UART3 非阻塞发送队列；
+ * - 每 50 ms 刷新一次 OLED；
+ * - 空闲时执行 WFI 等待下一次中断。
+ *
+ * 真正的循迹、编码器测速、左右轮 PI 和 PWM 写入全部位于
+ * Car_ControlStep5ms()，主循环绝不直接碰电机寄存器。
+ *
+ * JY901S/UART2 按用户要求保留并初始化，但第一版不读取其加速度或姿态参与控制。
+ * PID_Tuner.c/.h 也继续保留供以后架空调速；比赛入口不调用 PIDTuner_Init() 或
+ * PIDTuner_Process()，因此不会在上电时抢占 PB21 流程或调用停车接口。
  */
-
-/** @brief 读取并清空按键事件，再映射为整车应用动作。 */
-static void ProcessKeyEvents(void)
-{
-    uint8_t events = Key_TakeEvents();
-
-    if ((events & KEY_EVENT_USER) != 0U) {
-        /* PB21 在“使能/停车”间切换；循迹未就绪时 SetArmed 会安全拒绝。 */
-        bool next_state = !Car_ControlIsArmed();
-        if (!Car_ControlSetArmed(next_state)) {
-            printf("ARM rejected: tracking sensors are not ready.\r\n");
-        }
-    }
-    if ((events & KEY_EVENT_KEY1) != 0U) {
-        /* PB0 只切换显示页，不影响控制器状态。 */
-        Display_NextPage();
-    }
-    if ((events & KEY_EVENT_KEY2) != 0U) {
-        /* PB1 循环调整基础速度，实际左右目标仍由循迹误差和限幅决定。 */
-        Car_ControlCycleBaseSpeed();
-    }
-}
-
-static void PrintStatus(void)
-{
-    CarTelemetry_t car;
-    JY901S_Data_t imu;
-
-    Car_ControlGetTelemetry(&car);
-    JY901S_GetData(&imu);
-
-    /*
-     * 全部使用整数输出，避免在 Cortex-M0+ 上引入体积较大的浮点 printf。
-     * target/speed 统一换算为 mm/s，yaw 保留 1 位小数，便于串口终端直接观察。
-     */
-    printf("ms=%lu arm=%u raw=%02X line=%02X err=%ld "
-           "target=%ld,%ld speed=%ld,%ld pwm=%ld,%ld "
-           "imu=%u yaw=%ld.%ld\r\n",
-           (unsigned long)Board_Millis(),
-           (unsigned int)car.armed,
-           (unsigned int)car.raw_track_mask,
-           (unsigned int)car.track_mask,
-           (long)car.track_error,
-           (long)(car.left_target_mps * 1000.0f),
-           (long)(car.right_target_mps * 1000.0f),
-           (long)(car.left_speed_mps * 1000.0f),
-           (long)(car.right_speed_mps * 1000.0f),
-           (long)car.left_pwm,
-           (long)car.right_pwm,
-           imu.online ? 1U : 0U,
-           (long)imu.yaw_deg,
-           (long)((imu.yaw_deg < 0.0f ? -imu.yaw_deg : imu.yaw_deg) * 10.0f) % 10L);
-}
 
 int main(void)
 {
-    uint32_t reset_cause = (uint32_t)DL_SYSCTL_getResetCause();
-    uint32_t display_tick;
-    uint32_t log_tick;
+    uint32_t oled_tick;
 
     /*
-     * SysConfig 先初始化时钟、GPIO、PWM、UART、I2C 和定时器寄存器。
-     * 此时 NVIC 尚未由 Board_Init 开放，因此各 BSP 可以在无并发环境下清零状态。
+     * SysConfig 必须最先执行：配置 80 MHz 时钟、底盘 PWM、GPIO、UART 和 1 ms
+     * 时基定时器。电磁铁、舵机及机构 PWM 已从配置源移除，相应引脚保持未分配。
      */
     SYSCFG_DL_init();
 
-    /* 应用初始化会先写零电机/执行器，再把两个舵机置于 1500 us 中位。 */
+    /*
+     * Car_ControlInit 先把两路电机写成零 PWM，再初始化编码器、循迹、按键、
+     * JY901S 和控制器；Race_ControlInit 进一步统一到 WAITING/巡航请求状态。
+     */
     Car_ControlInit();
+    Race_ControlInit();
+
+    /* OLED 初始化包含硬件复位延时，完成后显示唯一的比赛状态页。 */
     Display_Init();
+    Display_Update();
 
-    /* 最后才开放中断，确保任何异步事件都看见完整的软件初始状态。 */
+    /*
+     * 最后注册 5 ms 控制回调并开放编码器、JY901S 和 TIMG0 中断，再初始化
+     * UART3 遥测队列。UART3 TX 优先级最低且不在控制 ISR 中组帧或等待发送。
+     */
     Board_Init(Car_ControlStep5ms, APP_CONTROL_PERIOD_MS);
-
-    printf("G3507-BASE boot, reset=%lu\r\n", (unsigned long)reset_cause);
-    printf("PB21 arm/stop, PB0 display page, PB1 base speed.\r\n");
-    printf("JY901S UART2 PA21/PA22 9600 8N1; motor STBY is tied to 3.3V.\r\n");
-    printf("No serial motion-control command is implemented.\r\n");
-
-    /* 两个低频任务使用各自时间戳，uint32_t 相减写法可以自然跨越毫秒计数回绕。 */
-    display_tick = Board_Millis();
-    log_tick = display_tick;
+    Telemetry_StreamInit();
+    oled_tick = Board_Millis();
 
     while (1) {
+        uint8_t key_events = Key_TakeEvents();
         uint32_t now = Board_Millis();
 
-        /* 按键事件由 5 ms 中断产生，在主循环中取走并执行较重的应用动作。 */
-        ProcessKeyEvents();
+        /* 本题只使用板载 PB21；PB0/PB1 保留硬件配置，但第一版不分配比赛动作。 */
+        if ((key_events & KEY_EVENT_USER) != 0U) {
+            Race_ControlHandleUserKey();
+        }
 
-        if ((now - display_tick) >= 100U) {
-            /* 固定累加周期而不是赋值 now，可减少偶发延迟造成的长期节拍漂移。 */
-            display_tick += 100U;
+        /*
+         * 高频推进比赛流程，函数内部只在新的 5 ms 控制样本到达时累计横线计数；
+         * 即使主循环一毫秒内运行多次，也不会把同一个 A 点样本重复算作三次。
+         */
+        Race_ControlProcess();
+
+        /*
+         * 只读取本周期已经完成的 Car/Race 快照。若 UART3 队列暂时满，遥测模块
+         * 会整帧丢弃并累计计数，绝不阻塞 A 点识别、OLED 或 5 ms 控制闭环。
+         */
+        Telemetry_StreamProcess();
+
+        /*
+         * OLED 以 20 Hz 更新。刷新软件 SPI 显存属于主循环低优先级任务，
+         * 期间 1 ms 时基和 5 ms 控制中断仍可抢占，因而不会拖慢循迹闭环。
+         */
+        if ((now - oled_tick) >= 50U) {
+            oled_tick = now;
             Display_Update();
         }
-        if ((now - log_tick) >= 500U) {
-            log_tick += 500U;
-            PrintStatus();
-        }
 
-        /* 任务全部完成后休眠，1 ms 时基、编码器或 JY901S 中断都可唤醒 CPU。 */
+        /*
+         * WFI 只暂停 CPU 内核，TIMA1 电机 PWM 和各硬件外设继续运行；TIMG0
+         * 最迟 1 ms 后唤醒主循环。这样既不忙等，也不改变固定控制周期。
+         */
         __WFI();
     }
 }

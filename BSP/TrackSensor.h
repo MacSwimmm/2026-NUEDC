@@ -15,8 +15,9 @@ typedef struct {
     uint8_t line_mask;      /* 极性统一后：1 表示该通道检测到黑线 */
     uint8_t active_count;   /* 当前检测到黑线的通道数量 */
     uint8_t ready;          /* 连续获得正常图案后置 1 */
-    uint8_t junction;       /* 8 路全黑，通常表示宽线或交叉区域 */
-    float error;            /* 约 -70~+70；正值表示黑线位于左侧 */
+    uint8_t marker;         /* 1=至少连续相邻 3 路黑，A 点弱/强候选 */
+    uint8_t junction;       /* 1=至少连续相邻 4 路黑，A 点强候选 */
+    float error;            /* 约 -350~+350；负值线偏左，正值线偏右 */
 } TrackSensorData_t;
 
 /** 清空采样快照和启动就绪连续计数。 */

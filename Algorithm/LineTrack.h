@@ -2,37 +2,91 @@
 #define G3507_BASE_LINE_TRACK_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /**
  * @file LineTrack.h
- * @brief 八路循迹误差到左右轮目标速度的简单 PD 差速算法。
+ * @brief GitHub 源工程八路循迹逻辑的无硬件数值实现。
  *
- * 本模块只做数值计算，不读取 GPIO、不写电机，也不判断弯道或路口类型。
- * APP 每 5 ms 传入一次横向误差，算法按照以下约定输出左右轮目标速度：
- * - 正误差：黑线位于车体左侧，左轮减速、右轮加速；
- * - 负误差：黑线位于车体右侧，右轮减速、左轮加速；
- * - line_valid=false：立即输出双轮 0 m/s，并清除微分历史。
+ * 本模块完整保存源算法的动态基础速度、离散 PD、最后转向、丢线原地搜线和
+ * 6 s 停车保护。GPIO 采样、电机速度 PI 和 PWM 仍由当前工程原有层负责。
+ *
+ * 误差方向与源工程一致：负值表示黑线偏左，正值表示黑线偏右。
  */
 typedef struct {
-    float base_speed_mps;     /* 直线行驶基础速度，单位 m/s */
-    float kp;                 /* 横向误差比例系数，输出量纲为 m/s */
-    float kd;                 /* 相邻控制周期误差差分系数，输出量纲为 m/s */
-    float last_error;         /* 上一周期横向误差，仅用于计算差分项 */
-    float target_limit_mps;   /* 单轮目标速度绝对值上限，单位 m/s */
+    /* 初始化后保持不变的源算法参数，速度单位均为 m/s。 */
+    float maximum_base_speed_mps;
+    float minimum_base_speed_mps;
+    float error_slowdown_mps_per_error;
+    float kp;                    /* 直线小误差 P */
+    float entry_kp;              /* 入弯中等误差 P */
+    float curve_kp;              /* 弯中大误差 P */
+    float entry_error_abs;
+    float curve_error_abs;
+    float kd;
+    float correction_limit_mps;
+    float target_limit_mps;
+    float recovery_kick_speed_mps;
+    float recovery_speed_mps;
+    float direction_deadband;
+    uint32_t recovery_kick_ms;
+    uint32_t lost_protect_ms;
+
+    /* Race_Control/调试接口给出的速度上限，不改变源算法的误差降速公式。 */
+    float requested_base_speed_mps;
+
+    /* 每周期更新的源算法状态和只读诊断量。 */
+    float last_error;
+    float derivative;
+    float active_kp;
+    float p_term_mps;
+    float d_term_mps;
+    float base_speed_mps;
+    float correction_mps;
+    uint32_t lost_time_ms;
+    int8_t last_direction;       /* -1 左转，+1 右转，0 尚未越过方向死区 */
+    int8_t recovery_direction;   /* 本次丢线实际采用的原地搜线方向 */
+    bool line_was_visible;       /* false 时下一次重捕获首拍 D 项强制为 0 */
+    bool line_ever_seen;
+    bool recovering;
+    bool running;
+    bool line_fault;
 } LineTrack_t;
 
-/** 初始化控制器参数并清空误差历史。 */
-void LineTrack_Init(LineTrack_t *controller, float base_speed_mps,
-                    float kp, float kd, float target_limit_mps);
+/** 初始化全部源循迹参数并清空一次运行的历史状态。 */
+void LineTrack_Init(LineTrack_t *controller,
+                    float maximum_base_speed_mps,
+                    float minimum_base_speed_mps,
+                    float error_slowdown_mps_per_error,
+                    float kp, float entry_kp, float curve_kp,
+                    float entry_error_abs, float curve_error_abs,
+                    float kd,
+                    float correction_limit_mps,
+                    float target_limit_mps,
+                    float recovery_kick_speed_mps,
+                    float recovery_speed_mps,
+                    uint32_t recovery_kick_ms,
+                    uint32_t lost_protect_ms,
+                    float direction_deadband);
 
-/** 仅清空历史误差；停车和重新使能时调用，避免保留旧微分冲击。 */
+/** 清空误差、方向和丢线历史；保留参数与当前请求速度上限。 */
 void LineTrack_Reset(LineTrack_t *controller);
 
-/** 修改基础速度，单位 m/s；不会改变 Kp、Kd 或输出限幅。 */
+/** 设置允许的基础速度上限；当前有线速度公式范围为 60~100 RPM。 */
 void LineTrack_SetBaseSpeed(LineTrack_t *controller, float base_speed_mps);
 
-/** 根据本周期循迹误差计算左右轮目标速度，输出单位均为 m/s。 */
-void LineTrack_Calculate(LineTrack_t *controller, float line_error, bool line_valid,
-                         float *left_target_mps, float *right_target_mps);
+/**
+ * 执行一次完整源循迹步骤。
+ *
+ * 有线时保持原动态基础速度、分段 P 和固定差速上限，不引入额外阶段状态。
+ * 丢线时立即向最后真实转向的反方向快速打一把，再沿该反方向慢速搜线；
+ * 连续丢线达到保护时间后输出 0 并置 line_fault。
+ */
+void LineTrack_Calculate(LineTrack_t *controller,
+                         float line_error,
+                         bool line_valid,
+                         uint32_t sample_time_ms,
+                         float *left_target_mps,
+                         float *right_target_mps);
 
 #endif

@@ -12,9 +12,47 @@
 
 /* 解析结果由 UART ISR 更新、主循环读取，因此使用 volatile 快照。 */
 static volatile JY901S_Data_t g_imu;
+/* 对外可见的 Watch 镜像；真实解析缓存仍保持在驱动内部。 */
+volatile JY901S_Watch_t g_jy901s_watch;
 /* 固定 11 字节接收缓冲和当前写入位置，只在 UART ISR 中访问。 */
 static uint8_t g_frame[JY901S_FRAME_LENGTH];
 static uint8_t g_frame_index = 0U;
+
+static void CopyDataToWatch(const JY901S_Data_t *data)
+{
+    g_jy901s_watch.data.acc_x_g = data->acc_x_g;
+    g_jy901s_watch.data.acc_y_g = data->acc_y_g;
+    g_jy901s_watch.data.acc_z_g = data->acc_z_g;
+    g_jy901s_watch.data.gyro_x_dps = data->gyro_x_dps;
+    g_jy901s_watch.data.gyro_y_dps = data->gyro_y_dps;
+    g_jy901s_watch.data.gyro_z_dps = data->gyro_z_dps;
+    g_jy901s_watch.data.roll_deg = data->roll_deg;
+    g_jy901s_watch.data.pitch_deg = data->pitch_deg;
+    g_jy901s_watch.data.yaw_deg = data->yaw_deg;
+    g_jy901s_watch.data.temperature_c = data->temperature_c;
+    g_jy901s_watch.data.valid_frame_count = data->valid_frame_count;
+    g_jy901s_watch.data.checksum_error_count = data->checksum_error_count;
+    g_jy901s_watch.data.last_frame_ms = data->last_frame_ms;
+    g_jy901s_watch.data.online = data->online;
+}
+
+static void CopyWatchToData(JY901S_Data_t *data)
+{
+    data->acc_x_g = g_jy901s_watch.data.acc_x_g;
+    data->acc_y_g = g_jy901s_watch.data.acc_y_g;
+    data->acc_z_g = g_jy901s_watch.data.acc_z_g;
+    data->gyro_x_dps = g_jy901s_watch.data.gyro_x_dps;
+    data->gyro_y_dps = g_jy901s_watch.data.gyro_y_dps;
+    data->gyro_z_dps = g_jy901s_watch.data.gyro_z_dps;
+    data->roll_deg = g_jy901s_watch.data.roll_deg;
+    data->pitch_deg = g_jy901s_watch.data.pitch_deg;
+    data->yaw_deg = g_jy901s_watch.data.yaw_deg;
+    data->temperature_c = g_jy901s_watch.data.temperature_c;
+    data->valid_frame_count = g_jy901s_watch.data.valid_frame_count;
+    data->checksum_error_count = g_jy901s_watch.data.checksum_error_count;
+    data->last_frame_ms = g_jy901s_watch.data.last_frame_ms;
+    data->online = g_jy901s_watch.data.online;
+}
 
 static int16_t ReadS16LE(const uint8_t *data)
 {
@@ -114,12 +152,22 @@ void JY901S_Init(void)
     g_imu.checksum_error_count = 0U;
     g_imu.last_frame_ms = 0U;
     g_imu.online = false;
+    g_jy901s_watch.override_enable = 0U;
+    {
+        JY901S_Data_t zero_data = {0};
+        CopyDataToWatch(&zero_data);
+    }
     g_frame_index = 0U;
 }
 
 void JY901S_GetData(JY901S_Data_t *data)
 {
     uint32_t primask = __get_PRIMASK();
+
+    if (g_jy901s_watch.override_enable != 0U) {
+        CopyWatchToData(data);
+        return;
+    }
 
     __disable_irq();
     *data = g_imu;
@@ -130,6 +178,7 @@ void JY901S_GetData(JY901S_Data_t *data)
     /* online 不在 ISR 中维护，读取时依据当前时间计算，掉线后会自然变为 false。 */
     data->online = (data->valid_frame_count != 0U) &&
                    ((Board_Millis() - data->last_frame_ms) <= JY901S_OFFLINE_TIMEOUT_MS);
+    CopyDataToWatch(data);
 }
 
 void JY901S_UART_INST_IRQHandler(void)

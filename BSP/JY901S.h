@@ -28,6 +28,18 @@ typedef struct {
     bool online;                   /* GetData 根据最近帧时间动态计算的在线状态 */
 } JY901S_Data_t;
 
+/**
+ * Keil Watch 镜像。override_enable=0 时 data 自动刷新真实传感器数据；
+ * 写成 1 后驱动返回 Watch 中手工修改的 data，便于脱离传感器联调。
+ */
+typedef struct {
+    uint8_t override_enable;
+    JY901S_Data_t data;
+} JY901S_Watch_t;
+
+/** 非 static、volatile 全局变量，可直接添加到 Keil Watch。 */
+extern volatile JY901S_Watch_t g_jy901s_watch;
+
 /** 清空解析器、统计计数和所有物理量。 */
 void JY901S_Init(void);
 

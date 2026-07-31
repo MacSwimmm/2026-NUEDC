@@ -29,9 +29,6 @@ const I2C     = scripting.addModule("/ti/driverlib/I2C", {}, false);
 const I2C1    = I2C.addInstance();
 const PWM     = scripting.addModule("/ti/driverlib/PWM", {}, false);
 const PWM1    = PWM.addInstance();
-const PWM2    = PWM.addInstance();
-const PWM3    = PWM.addInstance();
-const PWM4    = PWM.addInstance();
 const SYSCTL  = scripting.addModule("/ti/driverlib/SYSCTL");
 const SYSTICK = scripting.addModule("/ti/driverlib/SYSTICK");
 const TIMER   = scripting.addModule("/ti/driverlib/TIMER", {}, false);
@@ -150,27 +147,33 @@ GPIO11.associatedPins[1].interruptPriority = "0";
 GPIO11.associatedPins[1].interruptEn       = true;
 GPIO11.associatedPins[1].pin.$assign       = "PB20";
 
-/* 八路数字循迹输入：实车从左到右固定安装 CH1~CH8。 */
+/* 八路数字循迹输入：实车从左到右固定安装 CH1~CH8，均关闭内部上下拉。 */
 GPIO12.port = "PORTA";
 GPIO12.$name = "TRACK_A";
 GPIO12.associatedPins.create(6);
 GPIO12.associatedPins[0].$name = "CH1";
 GPIO12.associatedPins[0].direction = "INPUT";
+GPIO12.associatedPins[0].internalResistor = "NONE";
 GPIO12.associatedPins[0].pin.$assign = "PA0";
 GPIO12.associatedPins[1].$name = "CH2";
 GPIO12.associatedPins[1].direction = "INPUT";
+GPIO12.associatedPins[1].internalResistor = "NONE";
 GPIO12.associatedPins[1].pin.$assign = "PA7";
 GPIO12.associatedPins[2].$name = "CH3";
 GPIO12.associatedPins[2].direction = "INPUT";
+GPIO12.associatedPins[2].internalResistor = "NONE";
 GPIO12.associatedPins[2].pin.$assign = "PA9";
 GPIO12.associatedPins[3].$name = "CH4";
 GPIO12.associatedPins[3].direction = "INPUT";
+GPIO12.associatedPins[3].internalResistor = "NONE";
 GPIO12.associatedPins[3].pin.$assign = "PA12";
 GPIO12.associatedPins[4].$name = "CH5";
 GPIO12.associatedPins[4].direction = "INPUT";
+GPIO12.associatedPins[4].internalResistor = "NONE";
 GPIO12.associatedPins[4].pin.$assign = "PA24";
 GPIO12.associatedPins[5].$name = "CH6";
 GPIO12.associatedPins[5].direction = "INPUT";
+GPIO12.associatedPins[5].internalResistor = "NONE";
 GPIO12.associatedPins[5].pin.$assign = "PA27";
 
 GPIO13.port = "PORTB";
@@ -178,9 +181,11 @@ GPIO13.$name = "TRACK_B";
 GPIO13.associatedPins.create(2);
 GPIO13.associatedPins[0].$name = "CH7";
 GPIO13.associatedPins[0].direction = "INPUT";
+GPIO13.associatedPins[0].internalResistor = "NONE";
 GPIO13.associatedPins[0].pin.$assign = "PB16";
 GPIO13.associatedPins[1].$name = "CH8";
 GPIO13.associatedPins[1].direction = "INPUT";
+GPIO13.associatedPins[1].internalResistor = "NONE";
 GPIO13.associatedPins[1].pin.$assign = "PB17";
 
 /* 两个扩展按键均使用内部上拉，按下时为低电平。 */
@@ -221,44 +226,6 @@ PWM1.PWM_CHANNEL_1.$name        = "ti_driverlib_pwm_PWMTimerCC1";
 PWM1.ccp0PinConfig.$name        = "ti_driverlib_gpio_PWM_C0";
 PWM1.ccp1PinConfig.$name        = "ti_driverlib_gpio_PWM_C1";
 
-/* 两路 50 Hz 舵机 PWM：TIMG8 时钟 40 MHz / 40 / 20000，得到 1 us 计数。 */
-PWM2.$name                      = "SERVO_PWM";
-PWM2.timerStartTimer            = true;
-PWM2.pwmMode                    = "EDGE_ALIGN_UP";
-PWM2.clockPrescale              = 40;
-PWM2.timerCount                 = 20000;
-PWM2.peripheral.$assign         = "TIMG8";
-PWM2.peripheral.ccp0Pin.$assign = "PB10";
-PWM2.peripheral.ccp1Pin.$assign = "PB11";
-PWM2.PWM_CHANNEL_0.$name        = "ti_driverlib_pwm_SERVO_CC0";
-PWM2.PWM_CHANNEL_1.$name        = "ti_driverlib_pwm_SERVO_CC1";
-PWM2.ccp0PinConfig.$name        = "ti_driverlib_gpio_SERVO_C0";
-PWM2.ccp1PinConfig.$name        = "ti_driverlib_gpio_SERVO_C1";
-
-/* 20 kHz 电磁铁/功率模块 PWM，上电比较值为 0。 */
-PWM3.$name                      = "MAGNET_PWM";
-PWM3.timerStartTimer            = true;
-PWM3.pwmMode                    = "EDGE_ALIGN_UP";
-PWM3.ccIndex                    = [1];
-PWM3.timerCount                 = 4000;
-PWM3.peripheral.$assign         = "TIMG7";
-PWM3.peripheral.ccp1Pin.$assign = "PA2";
-PWM3.PWM_CHANNEL_1.$name        = "ti_driverlib_pwm_MAGNET_CC1";
-PWM3.ccp1PinConfig.$name        = "ti_driverlib_gpio_MAGNET_C1";
-
-/* 两路通用机构 PWM/步进脉冲输出，上电比较值均为 0。 */
-PWM4.$name                      = "MECHANISM_PWM";
-PWM4.timerStartTimer            = true;
-PWM4.pwmMode                    = "EDGE_ALIGN_UP";
-PWM4.timerCount                 = 8000;
-PWM4.peripheral.$assign         = "TIMG6";
-PWM4.peripheral.ccp0Pin.$assign = "PB26";
-PWM4.peripheral.ccp1Pin.$assign = "PB27";
-PWM4.PWM_CHANNEL_0.$name        = "ti_driverlib_pwm_MECHANISM_CC0";
-PWM4.PWM_CHANNEL_1.$name        = "ti_driverlib_pwm_MECHANISM_CC1";
-PWM4.ccp0PinConfig.$name        = "ti_driverlib_gpio_MECHANISM_C0";
-PWM4.ccp1PinConfig.$name        = "ti_driverlib_gpio_MECHANISM_C1";
-
 /* 1 ms 系统时基；Board 层每累计 5 次调用一轮底盘闭环。 */
 TIMER1.$name              = "SYSTEM_TICK";
 TIMER1.timerClkPrescale   = 32;
@@ -269,9 +236,11 @@ TIMER1.interrupts         = ["ZERO"];
 TIMER1.interruptPriority  = "2";
 TIMER1.peripheral.$assign = "TIMG0";
 
-/* 板载 Type-C/CH340 调试串口，仅用于日志，不提供接收控制入口。 */
+/* 板载 Type-C/CH340 调试串口：UART0 115200 8N1，RX 中断进入固定环形缓冲。 */
 UART1.$name                    = "DEBUG_UART";
 UART1.targetBaudRate           = 115200;
+UART1.enabledInterrupts        = ["RX"];
+UART1.interruptPriority        = "2";
 UART1.peripheral.$assign       = "UART0";
 UART1.peripheral.rxPin.$assign = "PA11";
 UART1.peripheral.txPin.$assign = "PA10";
@@ -298,14 +267,13 @@ UART3.peripheral.txPin.$assign = "PB4";
 UART3.txPinConfig.$name        = "ti_driverlib_gpio_ZIGBEE_UART_TX";
 UART3.rxPinConfig.$name        = "ti_driverlib_gpio_ZIGBEE_UART_RX";
 
-/* 预留相机/视觉串口，当前仅提供基础发送接口。 */
-UART4.$name                    = "CAMERA_UART";
+/* 无线 DAP 专用只发送遥测串口：UART3/PB12，115200 8N1；PB13 保持未分配。 */
+UART4.$name                    = "TELEMETRY_UART";
 UART4.targetBaudRate           = 115200;
+UART4.direction                = "TX";
 UART4.peripheral.$assign       = "UART3";
-UART4.peripheral.rxPin.$assign = "PB13";
 UART4.peripheral.txPin.$assign = "PB12";
-UART4.txPinConfig.$name        = "ti_driverlib_gpio_CAMERA_UART_TX";
-UART4.rxPinConfig.$name        = "ti_driverlib_gpio_CAMERA_UART_RX";
+UART4.txPinConfig.$name        = "ti_driverlib_gpio_TELEMETRY_UART_TX";
 
 /* 预留 400 kHz 扩展 I2C 控制器，具体器件协议由后续 BSP 添加。 */
 I2C1.$name                   = "EXPANSION_I2C";
