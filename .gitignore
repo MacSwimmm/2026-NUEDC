@@ -1,18 +1,18 @@
-# Keil local output and per-user settings
-keil/Objects/
-keil/Listings/
-keil/build.log
-keil/*.uvguix.*
-keil/*.uvoptx
-keil/*.build_log.htm
-keil/*.map
-keil/*.lst
+# Keil build outputs and per-user UI state
+MDK-ARM/F407-Balance/
+MDK-ARM/build_output.log
+MDK-ARM/*.uvguix.*
 
-# Editor and temporary files
+# Python caches and generated telemetry
+__pycache__/
+*.py[cod]
+PC_Tools/logs/
+
+# Local analysis scratch data
+tmp/
+
+# Common editor and OS metadata
 .vscode/
-tools/__pycache__/
-tools/pid_logs/
-*.bak
-*.tmp
-*.orig
+.idea/
+.DS_Store
 Thumbs.db
